@@ -18,9 +18,11 @@ COPY apps/web/package.json apps/web/
 # Install dependencies
 RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile
 
-# Remove opentelemetry to prevent clientModules runtime crash
-RUN find node_modules -path '*/@opentelemetry/api/build' -exec rm -rf {} + 2>/dev/null; \
-    find node_modules -name '@opentelemetry' -type d -not -path '*/next/*' -exec rm -rf {} + 2>/dev/null; \
+# CRITICAL: Remove external @opentelemetry/api to prevent clientModules runtime crash
+# Next.js 14.2 bundles its own copy; external copy causes manifest resolution failure
+RUN find node_modules/.pnpm -maxdepth 1 -name '@opentelemetry+api*' -exec rm -rf {} + 2>/dev/null; \
+    rm -rf node_modules/@opentelemetry 2>/dev/null; \
+    rm -rf node_modules/.pnpm/@opentelemetry+* 2>/dev/null; \
     true
 
 # Copy source
