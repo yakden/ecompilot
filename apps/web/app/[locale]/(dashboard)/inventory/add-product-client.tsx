@@ -277,7 +277,7 @@ export function AddProductClient({ open, onClose }: AddProductClientProps) {
       const result = lookup.data;
       setForm((prev) => ({
         ...prev,
-        name: result.name ?? result.title ?? prev.name,
+        name: result.name ?? prev.name,
         sku: autoSku(submittedBarcode),
         category: result.category ?? prev.category,
         brand: result.brand ?? prev.brand,
