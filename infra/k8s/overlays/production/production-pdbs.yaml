@@ -1,0 +1,238 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# PodDisruptionBudgets for all production services
+# Ensures at least 1 pod is always available during voluntary disruptions
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: auth-service-pdb
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/part-of: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: auth-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/part-of: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: billing-service-pdb
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: billing-service
+    app.kubernetes.io/part-of: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: billing-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: payment-reconciliation-pdb
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: payment-reconciliation
+    app.kubernetes.io/part-of: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-reconciliation
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ksef-service-pdb
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: ksef-service
+    app.kubernetes.io/part-of: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ksef-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: marketplace-hub-pdb
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: marketplace-hub
+    app.kubernetes.io/part-of: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: marketplace-hub
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: analytics-service-pdb
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: analytics-service
+    app.kubernetes.io/part-of: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: analytics-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notification-service-pdb
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/part-of: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notification-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: suppliers-service-pdb
+  namespace: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: suppliers-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: calc-service-pdb
+  namespace: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: calc-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ai-service-pdb
+  namespace: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ai-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: content-service-pdb
+  namespace: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: content-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: legal-service-pdb
+  namespace: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: legal-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: academy-service-pdb
+  namespace: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: academy-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: community-service-pdb
+  namespace: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: community-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: logistics-engine-pdb
+  namespace: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: logistics-engine
+---
+# Shared infrastructure PDBs
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: postgres-pdb
+  namespace: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nats-pdb
+  namespace: ecompilot
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nats
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: redis-pdb
+  namespace: ecompilot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis

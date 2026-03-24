@@ -1,0 +1,448 @@
+# ============================================================
+# Alert Rules — EcomPilot PL
+# ============================================================
+# Severity levels:
+#   critical  — page on-call immediately, SLO breach imminent
+#   warning   — investigate within 30 min, potential SLO risk
+#   business  — notify stakeholders, revenue/growth impact
+# ============================================================
+
+groups:
+
+  # ----------------------------------------------------------
+  # CRITICAL — infrastructure and availability
+  # ----------------------------------------------------------
+  - name: ecompilot.critical.availability
+    interval: 30s
+    rules:
+
+      # Any service that has been completely unreachable for 1 minute
+      - alert: ServiceDown
+        expr: up{job="ecompilot-services"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          runbook: "https://runbooks.ecompilot.internal/service-down"
+        annotations:
+          summary: "Service {{ $labels.service }} is DOWN"
+          description: >
+            Prometheus cannot scrape {{ $labels.service }} (instance {{ $labels.instance }}).
+            The service has been unreachable for more than 1 minute.
+            Check pod status: kubectl get pods -n ecompilot -l app={{ $labels.service }}
+          impact: "Total loss of {{ $labels.service }} functionality. SLO breach in progress."
+
+      # 5xx error rate exceeds 1% of total requests over a 5-minute window
+      - alert: HighErrorRate5xx
+        expr: |
+          (
+            sum by (service) (
+              rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])
+            )
+            /
+            sum by (service) (
+              rate(http_server_request_duration_seconds_count[5m])
+            )
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+          runbook: "https://runbooks.ecompilot.internal/high-error-rate"
+        annotations:
+          summary: "High 5xx error rate on {{ $labels.service }}"
+          description: >
+            {{ $labels.service }} has a 5xx error rate of {{ $value | humanizePercentage }}
+            (threshold: 1%) over the last 5 minutes.
+          impact: "Customers are experiencing errors. Error budget burning fast."
+
+      # Stripe webhook delivery failures — every failed event is revenue at risk
+      - alert: StripeWebhookFailing
+        expr: increase(stripe_webhook_events_failed_total[1m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: billing
+          runbook: "https://runbooks.ecompilot.internal/stripe-webhook-failing"
+        annotations:
+          summary: "Stripe webhook events are failing"
+          description: >
+            {{ $value }} Stripe webhook event(s) failed in the last minute.
+            Subscription state may be diverging from Stripe — subscriptions could appear
+            active in Stripe but inactive in EcomPilot.
+          impact: "Revenue processing degraded. Subscription lifecycle events not processed."
+
+      # PostgreSQL connections exhausted — new connections will be rejected
+      - alert: DatabaseConnectionsExhausted
+        expr: |
+          (
+            pg_stat_database_numbackends
+            /
+            pg_settings_max_connections
+          ) > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          runbook: "https://runbooks.ecompilot.internal/db-high-load"
+        annotations:
+          summary: "PostgreSQL connections near exhaustion ({{ $value | humanizePercentage }})"
+          description: >
+            PostgreSQL is using {{ $value | humanizePercentage }} of max_connections.
+            New connections will be refused above 100%.
+            Current backends: {{ $labels.numbackends }}
+          impact: "All services relying on PostgreSQL will start failing immediately."
+
+  # ----------------------------------------------------------
+  # CRITICAL — SLO burn rate (multi-window, multi-burn-rate)
+  # ----------------------------------------------------------
+  - name: ecompilot.critical.slo
+    interval: 30s
+    rules:
+
+      # Fast burn: consuming 2% of monthly error budget in 1 hour (14.4x burn rate)
+      - alert: APIAvailabilitySLOBurnRateCritical
+        expr: |
+          (
+            1 - (
+              sum(rate(http_server_request_duration_seconds_count{http_response_status_code!~"5.."}[1h]))
+              /
+              sum(rate(http_server_request_duration_seconds_count[1h]))
+            )
+          ) > (14.4 * 0.001)
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          slo: api-availability
+          window: "1h"
+        annotations:
+          summary: "API Availability SLO critical burn rate (1h window)"
+          description: >
+            Error rate {{ $value | humanizePercentage }} exceeds 14.4x burn rate
+            against the 99.9% SLO. At this rate the entire monthly error budget
+            (43 minutes) will be exhausted in approximately 2 hours.
+          impact: "SLO breach imminent. Escalate immediately."
+
+      # Slow burn: consuming 5% of monthly error budget in 6 hours (6x burn rate)
+      - alert: APIAvailabilitySLOBurnRateWarning
+        expr: |
+          (
+            1 - (
+              sum(rate(http_server_request_duration_seconds_count{http_response_status_code!~"5.."}[6h]))
+              /
+              sum(rate(http_server_request_duration_seconds_count[6h]))
+            )
+          ) > (6 * 0.001)
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+          slo: api-availability
+          window: "6h"
+        annotations:
+          summary: "API Availability SLO elevated burn rate (6h window)"
+          description: >
+            6-hour burn rate {{ $value | humanizePercentage }} exceeds 6x the sustainable
+            rate for the 99.9% SLO. Investigate before this escalates.
+
+  # ----------------------------------------------------------
+  # WARNING — performance and capacity
+  # ----------------------------------------------------------
+  - name: ecompilot.warning.performance
+    interval: 60s
+    rules:
+
+      # DB connections above 80% — warning before exhaustion
+      - alert: DatabaseConnectionsHigh
+        expr: |
+          (
+            pg_stat_database_numbackends
+            /
+            pg_settings_max_connections
+          ) > 0.80
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+          runbook: "https://runbooks.ecompilot.internal/db-high-load"
+        annotations:
+          summary: "PostgreSQL connections high ({{ $value | humanizePercentage }})"
+          description: >
+            PostgreSQL connection pool is {{ $value | humanizePercentage }} full.
+            Review connection pooling configuration and check for connection leaks.
+
+      # AI service p95 latency exceeds 5 seconds
+      - alert: AIServiceLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (
+              rate(http_server_request_duration_seconds_bucket{service="ai-service"}[5m])
+            )
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: ai
+          runbook: "https://runbooks.ecompilot.internal/ai-slow"
+        annotations:
+          summary: "AI service p95 latency is {{ $value | humanizeDuration }}"
+          description: >
+            AI service request latency p95 = {{ $value }}s (SLO: < 3s for p95).
+            This may indicate LLM provider throttling, RAG index degradation, or
+            excessive prompt sizes.
+
+      # NATS consumer falling behind — message backlog growing
+      - alert: NATSConsumerLagging
+        expr: nats_consumer_num_pending > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          runbook: "https://runbooks.ecompilot.internal/nats-lagging"
+        annotations:
+          summary: "NATS consumer {{ $labels.consumer_name }} lagging ({{ $value }} pending)"
+          description: >
+            Consumer {{ $labels.consumer_name }} on stream {{ $labels.stream_name }}
+            has {{ $value }} pending messages — threshold is 1000.
+            Check consumer health and processing throughput.
+
+      # Memory pressure across any service container
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            container_memory_working_set_bytes{container!=""}
+            /
+            container_spec_memory_limit_bytes{container!=""}
+          ) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High memory usage in {{ $labels.container }} ({{ $value | humanizePercentage }})"
+          description: >
+            Container {{ $labels.container }} in pod {{ $labels.pod }} is using
+            {{ $value | humanizePercentage }} of its memory limit.
+            Risk of OOMKill if sustained.
+
+      # TLS certificate approaching expiry
+      - alert: CertificateExpiringSoon
+        expr: (probe_ssl_earliest_cert_expiry - time()) / 86400 < 7
+        for: 1h
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "TLS certificate for {{ $labels.instance }} expires in {{ $value | humanizeDuration }}"
+          description: >
+            The TLS certificate for {{ $labels.instance }} will expire in less than 7 days.
+            Renew immediately to avoid service disruption.
+
+      # High CPU sustained usage
+      - alert: HighCPUUsage
+        expr: |
+          (
+            sum by (service) (
+              rate(process_cpu_seconds_total{job="ecompilot-services"}[5m])
+            )
+          ) > 0.80
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High CPU usage on {{ $labels.service }} ({{ $value | humanizePercentage }})"
+          description: >
+            {{ $labels.service }} CPU utilisation has been above 80% for 10 minutes.
+            Consider horizontal scaling or profiling for hot paths.
+
+      # Latency p99 across any service exceeds 2 seconds
+      - alert: HighRequestLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum by (service, le) (
+              rate(http_server_request_duration_seconds_bucket{job="ecompilot-services"}[5m])
+            )
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High p99 latency on {{ $labels.service }}: {{ $value | humanizeDuration }}"
+          description: >
+            p99 request latency for {{ $labels.service }} = {{ $value }}s over last 5 minutes.
+            Investigate slow queries, downstream dependencies, or resource contention.
+
+  # ----------------------------------------------------------
+  # BUSINESS — growth, revenue, and conversion signals
+  # ----------------------------------------------------------
+  - name: ecompilot.business
+    interval: 60s
+    rules:
+
+      # No new user registrations for 2 hours — likely a signup flow failure
+      - alert: NoNewRegistrations
+        expr: increase(user_registrations_total[2h]) == 0
+        for: 5m
+        labels:
+          severity: business
+          team: growth
+        annotations:
+          summary: "Zero new user registrations in the past 2 hours"
+          description: >
+            No new user registrations have been recorded in the last 2 hours.
+            This is abnormal during business hours and likely indicates a broken
+            signup flow, email verification issue, or auth-service degradation.
+          impact: "Customer acquisition stopped. Revenue pipeline at risk."
+
+      # Churn rate exceeds 5% of active subscriptions in a 24-hour rolling window
+      - alert: HighChurnRate
+        expr: |
+          (
+            increase(subscription_cancellations_total[24h])
+            /
+            subscription_active_count
+          ) > 0.05
+        for: 15m
+        labels:
+          severity: business
+          team: growth
+        annotations:
+          summary: "High churn rate: {{ $value | humanizePercentage }} of subscriptions cancelled in 24h"
+          description: >
+            {{ $value | humanizePercentage }} of active subscriptions have been cancelled
+            in the last 24 hours (threshold: 5%).
+            Review recent product changes, pricing emails, or billing failures.
+          impact: "MRR decline accelerating. Review with product and sales immediately."
+
+      # Free-to-paid conversion rate below 5% over 7 days
+      - alert: LowConversionRate
+        expr: |
+          (
+            increase(subscription_upgrades_total{from_plan="free"}[7d])
+            /
+            increase(user_registrations_total[7d])
+          ) < 0.05
+        for: 1h
+        labels:
+          severity: business
+          team: growth
+        annotations:
+          summary: "Free-to-paid conversion rate is {{ $value | humanizePercentage }} (7d)"
+          description: >
+            Only {{ $value | humanizePercentage }} of new registrations converted to a paid
+            plan over the last 7 days (target: >= 5%).
+            Review onboarding funnel, trial experience, and in-app upgrade prompts.
+          impact: "Growth target at risk. Revenue per acquired user declining."
+
+      # Billing payment failures spike
+      - alert: PaymentFailureRateHigh
+        expr: |
+          (
+            increase(payment_failures_total[1h])
+            /
+            increase(payment_attempts_total[1h])
+          ) > 0.10
+        for: 10m
+        labels:
+          severity: business
+          team: billing
+          runbook: "https://runbooks.ecompilot.internal/stripe-webhook-failing"
+        annotations:
+          summary: "Payment failure rate {{ $value | humanizePercentage }} in last hour"
+          description: >
+            {{ $value | humanizePercentage }} of payment attempts in the last hour failed.
+            Check Stripe status, webhook delivery, and billing-service logs.
+          impact: "Direct revenue loss and subscription degradation."
+
+      # AI token budget exhaustion warning
+      - alert: AITokenBudgetLow
+        expr: |
+          (
+            ai_token_budget_remaining_tokens
+            /
+            ai_token_budget_total_tokens
+          ) < 0.10
+        for: 5m
+        labels:
+          severity: business
+          team: ai
+        annotations:
+          summary: "AI token budget at {{ $value | humanizePercentage }} remaining"
+          description: >
+            Less than 10% of the monthly AI token budget remains.
+            At the current burn rate the budget will be exhausted before month end.
+            Review per-request token usage and consider rate limiting AI features.
+          impact: "AI features will be disabled when budget is exhausted."
+
+  # ----------------------------------------------------------
+  # SECURITY — threat detection and anomaly alerts
+  # ----------------------------------------------------------
+  - name: ecompilot.security
+    interval: 30s
+    rules:
+
+      # Brute force login detection — rate of 401 responses exceeds 10/5min per source
+      - alert: BruteForceLoginAttempt
+        expr: |
+          sum by (instance) (
+            rate(http_server_request_duration_seconds_count{http_response_status_code="401", http_route=~"/api/v1/auth/login"}[5m])
+          ) * 300 > 10
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+          runbook: "https://runbooks.ecompilot.internal/brute-force-login"
+        annotations:
+          summary: "Possible brute-force login attack from {{ $labels.instance }}"
+          description: >
+            More than 10 HTTP 401 responses on the login endpoint in 5 minutes
+            from {{ $labels.instance }}. This may indicate a credential stuffing
+            or brute-force attack. Review source IPs and consider temporary blocking.
+          impact: "Account compromise risk. Investigate immediately."
+
+      # Elevated 403 rate — more than 5% of all requests are forbidden
+      - alert: Elevated403Rate
+        expr: |
+          (
+            sum by (service) (
+              rate(http_server_request_duration_seconds_count{http_response_status_code="403"}[5m])
+            )
+            /
+            sum by (service) (
+              rate(http_server_request_duration_seconds_count[5m])
+            )
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+          runbook: "https://runbooks.ecompilot.internal/elevated-403"
+        annotations:
+          summary: "Elevated 403 Forbidden rate on {{ $labels.service }} ({{ $value | humanizePercentage }})"
+          description: >
+            {{ $labels.service }} is returning 403 Forbidden for more than 5% of all
+            requests over the last 5 minutes. This may indicate authorization bypass
+            attempts, misconfigured RBAC, or an ongoing privilege escalation attack.
+          impact: "Potential unauthorized access attempts. Review access logs."
+
+      # Anomalous egress traffic — more than 50MB in 5 minutes from a single pod
+      - alert: AnomalousEgressTraffic
+        expr: |
+          sum by (pod) (
+            rate(container_network_transmit_bytes_total[5m])
+          ) * 300 > 50 * 1024 * 1024
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+          runbook: "https://runbooks.ecompilot.internal/anomalous-egress"
+        annotations:
+          summary: "Anomalous egress traffic from pod {{ $labels.pod }}"
+          description: >
+            Pod {{ $labels.pod }} has transmitted more than 50MB in a 5-minute window.
+            This may indicate data exfiltration, a compromised container, or an
+            unintended bulk data transfer. Investigate network activity immediately.
+          impact: "Possible data exfiltration. Quarantine pod if confirmed."

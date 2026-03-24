@@ -1,0 +1,220 @@
+# ============================================================
+# OpenTelemetry Collector Configuration — EcomPilot PL
+# ============================================================
+# Receives: OTLP gRPC (4317), OTLP HTTP (4318)
+# Exports:  Jaeger (traces), Prometheus (metrics), Loki (logs)
+# ============================================================
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1777
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        max_recv_msg_size_mib: 32
+        keepalive:
+          server_parameters:
+            max_connection_idle: 11s
+            max_connection_age: 12s
+            max_connection_age_grace: 5s
+            time: 10s
+            timeout: 5s
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://*"
+            - "https://*"
+          allowed_headers:
+            - "Content-Type"
+            - "traceparent"
+            - "tracestate"
+          max_age: 7200
+
+  # Prometheus receiver scrapes the collector's own metrics
+  prometheus/internal:
+    config:
+      scrape_configs:
+        - job_name: otel-collector-internal
+          scrape_interval: 15s
+          static_configs:
+            - targets: ["localhost:8888"]
+
+processors:
+  # Must be first in every pipeline — hard stop on memory pressure
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # Batch settings tuned for 5 s / 1000-item windows
+  batch:
+    timeout: 5s
+    send_batch_size: 1000
+    send_batch_max_size: 2000
+
+  # Stamp every span/metric/log with deployment context
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: production
+        action: upsert
+      - key: service.namespace
+        value: ecompilot
+        action: upsert
+
+  # Add k8s metadata when running inside a cluster
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 5s
+    override: false
+
+  # Drop noisy health-check traces to avoid polluting Jaeger
+  filter/health_checks:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["http.route"] == "/health"'
+        - 'attributes["http.route"] == "/ready"'
+        - 'attributes["http.route"] == "/metrics"'
+
+  # Tail-based sampling — keep 100% of errors and slow spans,
+  # sample everything else at 20%
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 100000
+    expected_new_traces_per_sec: 500
+    policies:
+      - name: errors-policy
+        type: status_code
+        status_code: {status_codes: [ERROR]}
+      - name: slow-traces-policy
+        type: latency
+        latency: {threshold_ms: 2000}
+      - name: probabilistic-policy
+        type: probabilistic
+        probabilistic: {sampling_percentage: 20}
+
+  # Add trace context to logs for correlation
+  transform/logs:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["loki.format"], "json")
+
+  # Promote span attributes to Prometheus labels
+  transform/metrics:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(attributes["service_name"], resource.attributes["service.name"]) where attributes["service_name"] == nil
+
+exporters:
+  # Jaeger — traces
+  otlp/jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 120s
+    sending_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 5000
+
+  # Prometheus — metrics (pull model, scraped by Prometheus on :8889)
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: ecompilot
+    send_timestamps: true
+    metric_expiration: 3m
+    enable_open_metrics: true
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # Loki — logs (push model via HTTP)
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    tls:
+      insecure: true
+    default_labels_enabled:
+      exporter: false
+      job: true
+      instance: true
+      level: true
+    headers:
+      "X-Scope-OrgID": "ecompilot"
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 120s
+    sending_queue:
+      enabled: true
+      num_consumers: 5
+      queue_size: 2000
+
+  # Compact debug output — useful during troubleshooting, not noisy
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+service:
+  extensions: [health_check, pprof, zpages]
+
+  telemetry:
+    logs:
+      level: info
+      development: false
+      encoding: json
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
+
+  pipelines:
+    # --- Traces ---
+    traces:
+      receivers: [otlp]
+      processors:
+        - memory_limiter
+        - resource
+        - resourcedetection
+        - filter/health_checks
+        - tail_sampling
+        - batch
+      exporters: [otlp/jaeger, debug]
+
+    # --- Metrics ---
+    metrics:
+      receivers: [otlp, prometheus/internal]
+      processors:
+        - memory_limiter
+        - resource
+        - resourcedetection
+        - transform/metrics
+        - batch
+      exporters: [prometheus, debug]
+
+    # --- Logs ---
+    logs:
+      receivers: [otlp]
+      processors:
+        - memory_limiter
+        - resource
+        - resourcedetection
+        - transform/logs
+        - batch
+      exporters: [loki, debug]

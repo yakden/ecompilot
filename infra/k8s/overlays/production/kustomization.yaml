@@ -1,0 +1,162 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ecompilot
+
+# ── Base resources ─────────────────────────────────────────────────────────
+resources:
+  - ../../base
+  - ../../services/auth-service
+  - ../../services/analytics-service
+  - ../../services/suppliers-service
+  - ../../services/calc-service
+  - ../../services/ai-service
+  - ../../services/billing-service
+  - ../../services/content-service
+  - ../../services/legal-service
+  - ../../services/academy-service
+  - ../../services/community-service
+  - ../../services/notification-service
+  - ../../services/api-gateway
+  - ../../services/marketplace-hub
+  - ../../services/logistics-engine
+  - ../../services/ksef-service
+  - ../../services/payment-reconciliation
+  - ../../shared
+  - ../../ingress
+  - ../../network-policies
+
+# ── Common labels ──────────────────────────────────────────────────────────
+commonLabels:
+  environment: production
+
+commonAnnotations:
+  app.kubernetes.io/environment: production
+
+# ── Image tags: production uses SHA-pinned digests (managed by CI/CD) ──────
+images:
+  - name: ghcr.io/ecompilot/auth-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/analytics-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/suppliers-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/calc-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/ai-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/billing-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/content-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/legal-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/academy-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/community-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/notification-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/api-gateway
+    newTag: latest
+  - name: ghcr.io/ecompilot/marketplace-hub
+    newTag: latest
+  - name: ghcr.io/ecompilot/logistics-engine
+    newTag: latest
+  - name: ghcr.io/ecompilot/ksef-service
+    newTag: latest
+  - name: ghcr.io/ecompilot/payment-reconciliation
+    newTag: latest
+
+# ── Strategic merge patches — production-grade settings ───────────────────
+patches:
+  # Ensure 2 replicas minimum for all Deployments in production
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+    target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/part-of=ecompilot"
+
+  # Higher resource limits for production
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "100m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "500m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "512Mi"
+    target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/part-of=ecompilot"
+
+  # HPA: production min=2, max=10
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 10
+    target:
+      kind: HorizontalPodAutoscaler
+      labelSelector: "app.kubernetes.io/part-of=ecompilot"
+
+  # API gateway and billing-service get more headroom in production
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 20
+    target:
+      kind: HorizontalPodAutoscaler
+      name: api-gateway
+
+  - patch: |-
+      - op: replace
+        path: /spec/maxReplicas
+        value: 15
+    target:
+      kind: HorizontalPodAutoscaler
+      name: billing-service
+
+  # Production ingress: production cert-manager issuer
+  - patch: |-
+      - op: replace
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: letsencrypt-production
+    target:
+      kind: Ingress
+      name: ecompilot-ingress
+
+  # Postgres: full 50Gi PVC for production
+  - patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: "50Gi"
+    target:
+      kind: StatefulSet
+      name: postgres
+
+  # NATS: 3-node cluster for production HA
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+    target:
+      kind: StatefulSet
+      name: nats
+
+  # PodDisruptionBudgets — applied as separate resources via patchesStrategicMerge
+  # See production-pdbs.yaml in this overlay
+
+# ── Additional production-only resources ──────────────────────────────────
+# PodDisruptionBudgets to ensure availability during node maintenance
+patchesStrategicMerge:
+  - production-pdbs.yaml

@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ─── Dark theme (default / .dark class) ─────────────────────────────── */
+  :root,
+  .dark {
+    --background: 222 47% 4%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 7%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 7%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 263 70% 50%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 263 70% 50%;
+    --radius: 0.75rem;
+  }
+
+  /* ─── Light theme (.light class) ─────────────────────────────────────── */
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 263 70% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 263 70% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Smooth theme transitions — apply to the properties that change */
+  *,
+  *::before,
+  *::after {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-duration: 200ms;
+    transition-timing-function: ease;
+  }
+
+  /* Disable transition on elements that should not animate (e.g. SVG paths) */
+  svg * {
+    transition: none;
+  }
+}
+
+@layer utilities {
+  .gradient-text {
+    @apply bg-gradient-to-r from-brand-400 to-accent-400 bg-clip-text text-transparent;
+  }
+
+  .gradient-bg {
+    background: linear-gradient(135deg, #7c3aed 0%, #0ea5e9 100%);
+  }
+
+  .glow-brand {
+    box-shadow: 0 0 40px rgba(124, 58, 237, 0.3);
+  }
+
+  .glow-sm {
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:border-brand-600/50 hover:shadow-lg hover:shadow-brand-950/50;
+  }
+
+  /* Glass effect — adapts to light/dark via the backdrop */
+  .glass {
+    @apply bg-white/60 backdrop-blur-sm border border-slate-200/60 dark:bg-slate-900/60 dark:border-slate-800/60;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(124, 58, 237, 0.3) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgba(124, 58, 237, 0.3);
+    border-radius: 2px;
+  }
+}
+
+/* Custom animations */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Prose styles for AI chat — dark mode */
+.prose-dark p {
+  @apply text-slate-300 leading-relaxed;
+}
+
+.prose-dark code {
+  @apply bg-slate-800 text-brand-300 px-1.5 py-0.5 rounded text-sm;
+}
+
+.prose-dark pre {
+  @apply bg-slate-800 rounded-lg p-4 overflow-x-auto;
+}
+
+.prose-dark ul {
+  @apply list-disc list-inside text-slate-300 space-y-1;
+}
+
+.prose-dark ol {
+  @apply list-decimal list-inside text-slate-300 space-y-1;
+}
+
+.prose-dark strong {
+  @apply text-white font-semibold;
+}
+
+/* Prose styles for AI chat — light mode */
+.light .prose-dark p {
+  @apply text-slate-700;
+}
+
+.light .prose-dark code {
+  @apply bg-slate-100 text-brand-700;
+}
+
+.light .prose-dark pre {
+  @apply bg-slate-100;
+}
+
+.light .prose-dark ul,
+.light .prose-dark ol {
+  @apply text-slate-700;
+}
+
+.light .prose-dark strong {
+  @apply text-slate-900;
+}

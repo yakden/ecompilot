@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "paths": {
+      "@ecompilot/shared-types": ["../../packages/shared-types/dist/index.d.ts"],
+      "@ecompilot/event-contracts": ["../../packages/event-contracts/dist/index.d.ts"],
+      "@ecompilot/shared-observability": ["../../packages/shared-observability/dist/index.d.ts"],
+      "@ecompilot/shared-security": ["../../packages/shared-security/dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

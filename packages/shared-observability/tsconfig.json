@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "paths": {
+      "@ecompilot/shared-types": ["../shared-types/src/index.ts"],
+      "@ecompilot/event-contracts": ["../event-contracts/src/index.ts"],
+      "@ecompilot/shared-observability": ["./src/index.ts"],
+      "@ecompilot/shared-ui": ["../shared-ui/src/index.ts"],
+      "@ecompilot/api-client": ["../api-client/src/index.ts"],
+      "@ecompilot/shared-security": ["../shared-security/src/index.ts"]
+    }
+  },
+  "references": [
+    { "path": "../shared-types" }
+  ],
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

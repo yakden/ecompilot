@@ -1,0 +1,382 @@
+name: ecompilot-services
+
+networks:
+  ecompilot-network:
+    external: true
+
+services:
+  auth-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: auth-service
+        SERVICE_PORT: "3001"
+    container_name: ecompilot-auth
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3001"
+      SERVICE_NAME: auth-service
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./services/auth-service/src:/app/services/auth-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  analytics-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: analytics-service
+        SERVICE_PORT: "3002"
+    container_name: ecompilot-analytics
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3002"
+      SERVICE_NAME: analytics-service
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./services/analytics-service/src:/app/services/analytics-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  calc-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: calc-service
+        SERVICE_PORT: "3003"
+    container_name: ecompilot-calc
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3003"
+      SERVICE_NAME: calc-service
+    ports:
+      - "3003:3003"
+    volumes:
+      - ./services/calc-service/src:/app/services/calc-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: ai-service
+        SERVICE_PORT: "3004"
+    container_name: ecompilot-ai
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3004"
+      SERVICE_NAME: ai-service
+    ports:
+      - "3004:3004"
+    volumes:
+      - ./services/ai-service/src:/app/services/ai-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  suppliers-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: suppliers-service
+        SERVICE_PORT: "3005"
+    container_name: ecompilot-suppliers
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3005"
+      SERVICE_NAME: suppliers-service
+    ports:
+      - "3005:3005"
+    volumes:
+      - ./services/suppliers-service/src:/app/services/suppliers-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  billing-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: billing-service
+        SERVICE_PORT: "3006"
+    container_name: ecompilot-billing
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3006"
+      SERVICE_NAME: billing-service
+    ports:
+      - "3006:3006"
+    volumes:
+      - ./services/billing-service/src:/app/services/billing-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  content-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: content-service
+        SERVICE_PORT: "3007"
+    container_name: ecompilot-content
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3007"
+      SERVICE_NAME: content-service
+    ports:
+      - "3007:3007"
+    volumes:
+      - ./services/content-service/src:/app/services/content-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  legal-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: legal-service
+        SERVICE_PORT: "3008"
+    container_name: ecompilot-legal
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3008"
+      SERVICE_NAME: legal-service
+    ports:
+      - "3008:3008"
+    volumes:
+      - ./services/legal-service/src:/app/services/legal-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  academy-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: academy-service
+        SERVICE_PORT: "3009"
+    container_name: ecompilot-academy
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3009"
+      SERVICE_NAME: academy-service
+    ports:
+      - "3009:3009"
+    volumes:
+      - ./services/academy-service/src:/app/services/academy-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  community-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: community-service
+        SERVICE_PORT: "3010"
+    container_name: ecompilot-community
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3010"
+      SERVICE_NAME: community-service
+    ports:
+      - "3010:3010"
+    volumes:
+      - ./services/community-service/src:/app/services/community-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: notification-service
+        SERVICE_PORT: "3011"
+    container_name: ecompilot-notification
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3011"
+      SERVICE_NAME: notification-service
+    ports:
+      - "3011:3011"
+    volumes:
+      - ./services/notification-service/src:/app/services/notification-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  marketplace-hub:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: marketplace-hub
+        SERVICE_PORT: "3012"
+    container_name: ecompilot-marketplace
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3012"
+      SERVICE_NAME: marketplace-hub
+    ports:
+      - "3012:3012"
+    volumes:
+      - ./services/marketplace-hub/src:/app/services/marketplace-hub/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  logistics-engine:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: logistics-engine
+        SERVICE_PORT: "3013"
+    container_name: ecompilot-logistics
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3013"
+      SERVICE_NAME: logistics-engine
+    ports:
+      - "3013:3013"
+    volumes:
+      - ./services/logistics-engine/src:/app/services/logistics-engine/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  ksef-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: ksef-service
+        SERVICE_PORT: "3014"
+    container_name: ecompilot-ksef
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3014"
+      SERVICE_NAME: ksef-service
+    ports:
+      - "3014:3014"
+    volumes:
+      - ./services/ksef-service/src:/app/services/ksef-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  payment-reconciliation:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: payment-reconciliation
+        SERVICE_PORT: "3015"
+    container_name: ecompilot-payments
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3015"
+      SERVICE_NAME: payment-reconciliation
+    ports:
+      - "3015:3015"
+    volumes:
+      - ./services/payment-reconciliation/src:/app/services/payment-reconciliation/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: api-gateway
+        SERVICE_PORT: "3016"
+    container_name: ecompilot-gateway
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3016"
+      SERVICE_NAME: api-gateway
+    ports:
+      - "3016:3016"
+    volumes:
+      - ./services/api-gateway/src:/app/services/api-gateway/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  # Utility service that waits for infra to be ready
+  infra-ready:
+    image: alpine:3.20
+    container_name: ecompilot-infra-ready
+    command: ["sh", "-c", "echo Infrastructure dependencies ready && sleep 2"]
+    networks:
+      - ecompilot-network

@@ -1,0 +1,317 @@
+# =============================================================================
+# Custom Semgrep Rules for EcomPilot PL
+#
+# Enforced in CI/CD pipeline to catch common security and quality issues
+# before they reach production.
+# =============================================================================
+
+rules:
+
+  # ---------------------------------------------------------------------------
+  # 1. No console.log in production code
+  # ---------------------------------------------------------------------------
+  - id: ecompilot.no-console-log
+    pattern: console.log(...)
+    message: >
+      Do not use console.log() in production code. Use the structured logger
+      from @ecompilot/shared-observability instead.
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: best-practice
+      technology: [typescript]
+    paths:
+      include:
+        - services/
+        - apps/
+        - packages/
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.spec.ts"
+        - "**/scripts/"
+        - "**/cli/"
+
+  - id: ecompilot.no-console-error
+    pattern: console.error(...)
+    message: >
+      Do not use console.error() in production code. Use
+      logger.error() from @ecompilot/shared-observability instead.
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: best-practice
+      technology: [typescript]
+    paths:
+      include:
+        - services/
+        - apps/
+        - packages/
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.spec.ts"
+
+  # ---------------------------------------------------------------------------
+  # 2. No any type in TypeScript
+  # ---------------------------------------------------------------------------
+  - id: ecompilot.no-any-type
+    patterns:
+      - pattern: "$X: any"
+      - pattern: "<any>"
+      - pattern: "as any"
+    message: >
+      Avoid using the any type. Use unknown, a specific type, or a
+      generic parameter instead.
+    languages: [typescript]
+    severity: WARNING
+    metadata:
+      category: best-practice
+      technology: [typescript]
+      cwe:
+        - "CWE-704: Incorrect Type Conversion or Cast"
+    paths:
+      include:
+        - services/
+        - apps/
+        - packages/
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.spec.ts"
+        - "**/*.d.ts"
+
+  # ---------------------------------------------------------------------------
+  # 3. No hardcoded secrets
+  # ---------------------------------------------------------------------------
+  - id: ecompilot.no-hardcoded-api-key
+    patterns:
+      - pattern: |
+          $KEY = "sk_live_..."
+      - pattern: |
+          $KEY = "sk_test_..."
+      - pattern: |
+          $KEY = "pk_live_..."
+      - pattern: |
+          $KEY = "rk_live_..."
+      - pattern: |
+          $KEY = "whsec_..."
+    message: >
+      Hardcoded Stripe API key detected. Store secrets in HashiCorp Vault
+      and access them via the Vault K8s injector.
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe:
+        - "CWE-798: Use of Hard-coded Credentials"
+      owasp:
+        - A07:2021 - Identification and Authentication Failures
+
+  - id: ecompilot.no-hardcoded-password
+    patterns:
+      - pattern: |
+          password = "..."
+      - pattern: |
+          password: "..."
+      - pattern: |
+          PASSWORD = "..."
+      - pattern: |
+          db_password = "..."
+      - pattern: |
+          DB_PASSWORD = "..."
+    message: >
+      Hardcoded password detected. Use environment variables or Vault
+      dynamic secrets for database credentials.
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe:
+        - "CWE-798: Use of Hard-coded Credentials"
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.spec.ts"
+        - "**/fixtures/"
+        - "**/seeds/"
+
+  - id: ecompilot.no-hardcoded-jwt-secret
+    patterns:
+      - pattern: |
+          $JWT_SECRET = "..."
+      - pattern: |
+          jwtSecret: "..."
+      - pattern: |
+          jwt_secret = "..."
+    message: >
+      Possible hardcoded JWT secret. JWT signing keys must be fetched from
+      Vault at runtime.
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe:
+        - "CWE-798: Use of Hard-coded Credentials"
+    paths:
+      exclude:
+        - "**/*.test.ts"
+        - "**/*.spec.ts"
+
+  # ---------------------------------------------------------------------------
+  # 4. SQL injection prevention
+  # ---------------------------------------------------------------------------
+  - id: ecompilot.no-raw-sql-interpolation
+    patterns:
+      - pattern: '$DB.query(`... ${$VAR} ...`)'
+      - pattern: '$DB.query("..." + $VAR + "...")'
+      - pattern: '$DB.execute(`... ${$VAR} ...`)'
+      - pattern: '$DB.raw(`... ${$VAR} ...`)'
+    message: >
+      SQL injection risk: string interpolation in a database query. Use
+      parameterized queries instead.
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe:
+        - "CWE-89: SQL Injection"
+      owasp:
+        - A03:2021 - Injection
+    paths:
+      exclude:
+        - "**/migrations/"
+        - "**/seeds/"
+
+  - id: ecompilot.no-knex-raw-interpolation
+    patterns:
+      - pattern: 'knex.raw(`... ${$VAR} ...`)'
+      - pattern: '$KNEX.raw(`... ${$VAR} ...`)'
+    message: >
+      SQL injection risk in knex.raw(). Use the binding syntax instead.
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe:
+        - "CWE-89: SQL Injection"
+
+  - id: ecompilot.no-drizzle-sql-interpolation
+    patterns:
+      - pattern: 'sql`... ${$VAR} ...`'
+    message: >
+      Ensure Drizzle SQL template literals use auto-parameterization properly.
+    languages: [typescript, javascript]
+    severity: INFO
+    metadata:
+      category: security
+      cwe:
+        - "CWE-89: SQL Injection"
+
+  # ---------------------------------------------------------------------------
+  # 5. PII leak prevention in logs
+  # ---------------------------------------------------------------------------
+  - id: ecompilot.no-pii-in-logs
+    patterns:
+      - pattern: "logger.info({..., email: $VAR, ...})"
+      - pattern: "logger.info({..., password: $VAR, ...})"
+      - pattern: "logger.info({..., ssn: $VAR, ...})"
+      - pattern: "logger.info({..., creditCard: $VAR, ...})"
+      - pattern: "logger.info({..., cardNumber: $VAR, ...})"
+      - pattern: "logger.info({..., nip: $VAR, ...})"
+      - pattern: "logger.info({..., pesel: $VAR, ...})"
+      - pattern: "logger.info({..., accessToken: $VAR, ...})"
+      - pattern: "logger.info({..., refreshToken: $VAR, ...})"
+      - pattern: "logger.info({..., phoneNumber: $VAR, ...})"
+      - pattern: "logger.info({..., address: $VAR, ...})"
+    message: >
+      PII detected in log statement. Logging personal data violates GDPR
+      (Art. 5(1)(c) -- data minimisation). Use escapeForLog() from
+      @ecompilot/shared-security and redact sensitive fields before logging.
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe:
+        - "CWE-532: Insertion of Sensitive Information into Log File"
+      owasp:
+        - A09:2021 - Security Logging and Monitoring Failures
+
+  - id: ecompilot.no-pii-in-error-logs
+    patterns:
+      - pattern: "logger.error({..., email: $VAR, ...})"
+      - pattern: "logger.error({..., password: $VAR, ...})"
+      - pattern: "logger.error({..., pesel: $VAR, ...})"
+      - pattern: "logger.error({..., nip: $VAR, ...})"
+      - pattern: "logger.error({..., accessToken: $VAR, ...})"
+      - pattern: "logger.error({..., refreshToken: $VAR, ...})"
+    message: >
+      PII detected in error log. Even error logs must not contain
+      personally identifiable information. Log a user ID or correlation
+      ID instead.
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe:
+        - "CWE-532: Insertion of Sensitive Information into Log File"
+
+  # ---------------------------------------------------------------------------
+  # 6. Dangerous code patterns
+  # ---------------------------------------------------------------------------
+  - id: ecompilot.no-dynamic-code-execution
+    patterns:
+      - pattern: $EVAL_FN(...)
+        metavariable-regex:
+          metavariable: $EVAL_FN
+          regex: ^eval$
+    message: >
+      Dynamic code execution detected (CWE-95). Remove this call and use
+      a safe alternative such as JSON.parse() for data or a lookup table
+      for dynamic dispatch.
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe:
+        - "CWE-95: Improper Neutralization of Directives in Dynamically Evaluated Code"
+
+  - id: ecompilot.no-unsafe-html-rendering
+    pattern: "dangerouslySetInnerHTML={...}"
+    message: >
+      Unsafe HTML rendering detected. Use sanitizeHtml() from
+      @ecompilot/shared-security before rendering user-generated HTML.
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe:
+        - "CWE-79: Cross-site Scripting (XSS)"
+
+  - id: ecompilot.no-unvalidated-redirect
+    patterns:
+      - pattern: "reply.redirect($URL)"
+      - pattern: "res.redirect($URL)"
+    message: >
+      Ensure redirect URLs are validated against an allowlist to prevent
+      open redirect vulnerabilities.
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe:
+        - "CWE-601: URL Redirection to Untrusted Site"
+
+  - id: ecompilot.no-weak-crypto
+    patterns:
+      - pattern: |
+          createHash("md5")
+      - pattern: |
+          createHash("sha1")
+    message: >
+      MD5 and SHA-1 are cryptographically broken. Use SHA-256 or SHA-512
+      for hashing, or use the encryption utilities from
+      @ecompilot/shared-security.
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe:
+        - "CWE-328: Use of Weak Hash"

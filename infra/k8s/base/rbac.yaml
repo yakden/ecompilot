@@ -1,0 +1,736 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# ServiceAccounts — one per service, no automounted tokens
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: auth-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/part-of: ecompilot
+  annotations:
+    # IRSA annotation added per environment via patch
+    eks.amazonaws.com/role-arn: ""
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: analytics-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: analytics-service
+    app.kubernetes.io/part-of: ecompilot
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: suppliers-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: suppliers-service
+    app.kubernetes.io/part-of: ecompilot
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: calc-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: calc-service
+    app.kubernetes.io/part-of: ecompilot
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ai-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: ai-service
+    app.kubernetes.io/part-of: ecompilot
+  annotations:
+    eks.amazonaws.com/role-arn: ""
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: billing-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: billing-service
+    app.kubernetes.io/part-of: ecompilot
+  annotations:
+    eks.amazonaws.com/role-arn: ""
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: content-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: content-service
+    app.kubernetes.io/part-of: ecompilot
+  annotations:
+    eks.amazonaws.com/role-arn: ""
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: legal-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: legal-service
+    app.kubernetes.io/part-of: ecompilot
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: academy-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: academy-service
+    app.kubernetes.io/part-of: ecompilot
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: community-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: community-service
+    app.kubernetes.io/part-of: ecompilot
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: notification-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/part-of: ecompilot
+  annotations:
+    eks.amazonaws.com/role-arn: ""
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-gateway
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/part-of: ecompilot
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: marketplace-hub
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: marketplace-hub
+    app.kubernetes.io/part-of: ecompilot
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: logistics-engine
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: logistics-engine
+    app.kubernetes.io/part-of: ecompilot
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ksef-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: ksef-service
+    app.kubernetes.io/part-of: ecompilot
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: payment-reconciliation
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: payment-reconciliation
+    app.kubernetes.io/part-of: ecompilot
+  annotations:
+    eks.amazonaws.com/role-arn: ""
+automountServiceAccountToken: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Role — base read access for all services (ConfigMap, Secrets via projected)
+# ─────────────────────────────────────────────────────────────────────────────
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ecompilot-service-base
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Role — auth-service: can read/update its own secrets for token rotation
+# ─────────────────────────────────────────────────────────────────────────────
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: auth-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["auth-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["auth-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: analytics-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: analytics-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["analytics-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["analytics-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: suppliers-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: suppliers-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["suppliers-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["suppliers-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: calc-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: calc-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["calc-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["calc-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ai-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: ai-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["ai-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["ai-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: billing-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: billing-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["billing-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["billing-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: content-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: content-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["content-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["content-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: legal-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: legal-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["legal-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["legal-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: academy-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: academy-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["academy-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["academy-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: community-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: community-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["community-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["community-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: notification-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["notification-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["notification-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: api-gateway-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["api-gateway-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["api-gateway-secret"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["endpoints", "services"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: marketplace-hub-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: marketplace-hub
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["marketplace-hub-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["marketplace-hub-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: logistics-engine-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: logistics-engine
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["logistics-engine-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["logistics-engine-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ksef-service-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: ksef-service
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["ksef-service-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["ksef-service-secret"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: payment-reconciliation-role
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: payment-reconciliation
+    app.kubernetes.io/part-of: ecompilot
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["payment-reconciliation-config"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["payment-reconciliation-secret"]
+    verbs: ["get"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RoleBindings
+# ─────────────────────────────────────────────────────────────────────────────
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: auth-service-binding
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/part-of: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: auth-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: auth-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: analytics-service-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: analytics-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: analytics-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: suppliers-service-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: suppliers-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: suppliers-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: calc-service-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: calc-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: calc-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ai-service-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: ai-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: ai-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: billing-service-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: billing-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: billing-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: content-service-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: content-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: content-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: legal-service-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: legal-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: legal-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: academy-service-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: academy-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: academy-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: community-service-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: community-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: community-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: notification-service-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: notification-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: notification-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: api-gateway-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: api-gateway
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: api-gateway-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: marketplace-hub-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: marketplace-hub
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: marketplace-hub-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: logistics-engine-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: logistics-engine
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: logistics-engine-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ksef-service-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: ksef-service
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: ksef-service-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: payment-reconciliation-binding
+  namespace: ecompilot
+subjects:
+  - kind: ServiceAccount
+    name: payment-reconciliation
+    namespace: ecompilot
+roleRef:
+  kind: Role
+  name: payment-reconciliation-role
+  apiGroup: rbac.authorization.k8s.io

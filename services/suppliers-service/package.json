@@ -1,0 +1,46 @@
+{
+  "name": "@ecompilot/suppliers-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Supplier discovery and management service",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "type-check": "tsc --project tsconfig.json --noEmit",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rimraf dist .tsbuildinfo",
+    "seed": "tsx src/db/seed.ts",
+    "sync-es": "tsx -e \"import('./src/services/elasticsearch.service.js').then(m => m.syncAll().then(r => process.stdout.write(JSON.stringify(r) + '\\n')))\""
+  },
+  "dependencies": {
+    "@ecompilot/event-contracts": "workspace:*",
+    "@ecompilot/shared-observability": "workspace:*",
+    "@ecompilot/shared-types": "workspace:*",
+    "@elastic/elasticsearch": "^8.15.0",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^10.0.0",
+    "@fastify/helmet": "^12.0.0",
+    "@fastify/rate-limit": "^10.0.0",
+    "drizzle-orm": "^0.33.0",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^4.5.1",
+    "pg": "^8.12.0",
+    "pino": "^9.4.0",
+    "redis": "^4.7.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "@types/pg": "^8.11.6",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

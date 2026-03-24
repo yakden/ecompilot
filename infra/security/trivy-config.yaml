@@ -1,0 +1,144 @@
+# =============================================================================
+# Trivy Scanner Configuration for EcomPilot PL
+#
+# Used in CI/CD pipeline to scan container images, filesystem (IaC),
+# and dependency manifests for vulnerabilities.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Global settings
+# ---------------------------------------------------------------------------
+severity:
+  - HIGH
+  - CRITICAL
+
+# Fail the pipeline on findings
+exit-code: 1
+
+# Ignore vulnerabilities without a fix available
+ignore-unfixed: true
+
+# Output format (sarif for GitHub Security tab integration)
+format: table
+
+# Timeout for the scan
+timeout: 15m
+
+# ---------------------------------------------------------------------------
+# Image scanning
+# ---------------------------------------------------------------------------
+image:
+  # Remove images from cache after scan
+  removed-pkgs: true
+
+  # Scan for:
+  vulnerability:
+    type:
+      - os        # OS package vulnerabilities (Alpine, Debian)
+      - library   # Language-specific (npm, pip, Go modules)
+
+  # Ignore specific CVEs that have been assessed and accepted
+  # Each entry MUST have a comment explaining why it is ignored
+  # and an expiry date for re-evaluation.
+  ignorefile: .trivyignore
+
+# ---------------------------------------------------------------------------
+# Filesystem / IaC scanning
+# ---------------------------------------------------------------------------
+filesystem:
+  scanners:
+    - vuln        # Dependency vulnerabilities
+    - misconfig   # IaC misconfigurations (Terraform, K8s manifests)
+    - secret      # Hardcoded secrets / credentials
+
+  # Paths to scan
+  paths:
+    - infra/terraform
+    - infra/k8s
+    - infra/docker
+
+  # Skip test/dev-only files
+  skip-dirs:
+    - node_modules
+    - dist
+    - coverage
+    - .turbo
+    - "**/__tests__"
+    - "**/*.test.*"
+    - "**/*.spec.*"
+
+# ---------------------------------------------------------------------------
+# Secret scanning
+# ---------------------------------------------------------------------------
+secret:
+  config: trivy-secret-config.yaml
+
+# ---------------------------------------------------------------------------
+# Dependency (SBOM) scanning
+# ---------------------------------------------------------------------------
+sbom:
+  format: cyclonedx
+  output: trivy-sbom.json
+
+# ---------------------------------------------------------------------------
+# Vulnerability database
+# ---------------------------------------------------------------------------
+db:
+  # Always pull the latest vulnerability DB before scanning
+  skip-update: false
+  # Use the light DB for faster scans in CI
+  light: false
+
+# ---------------------------------------------------------------------------
+# Custom policies (OPA / Rego)
+# ---------------------------------------------------------------------------
+misconfiguration:
+  # Custom OPA policies for EcomPilot-specific checks
+  policy-paths:
+    - infra/security/opa-policies
+
+  # Built-in checks to include
+  include:
+    - appshield   # Kubernetes best practices
+    - defsec      # General IaC security
+
+  # Severity threshold for misconfigurations
+  severity:
+    - HIGH
+    - CRITICAL
+
+# ---------------------------------------------------------------------------
+# CI/CD integration
+# ---------------------------------------------------------------------------
+# Cache directory (shared across pipeline runs)
+cache-dir: /tmp/trivy-cache
+
+# Report output for CI artifact storage
+output-files:
+  table: trivy-report.txt
+  json: trivy-report.json
+  sarif: trivy-report.sarif
+
+# ---------------------------------------------------------------------------
+# Container image targets (scanned in CI per service)
+# ---------------------------------------------------------------------------
+# These are template values; the actual image tag is injected by CI.
+image_targets:
+  - registry: ghcr.io/ecompilot
+    images:
+      - auth-service
+      - billing-service
+      - ai-service
+      - api-gateway
+      - analytics-service
+      - academy-service
+      - calc-service
+      - community-service
+      - content-service
+      - ksef-service
+      - legal-service
+      - logistics-engine
+      - marketplace-hub
+      - notification-service
+      - payment-reconciliation
+      - suppliers-service

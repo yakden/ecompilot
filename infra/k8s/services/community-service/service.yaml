@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: community-service
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: community-service
+    app.kubernetes.io/part-of: ecompilot
+    app.kubernetes.io/component: service
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9464"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: community-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+      protocol: TCP
+    - name: metrics
+      port: 9464
+      targetPort: 9464
+      protocol: TCP
+  sessionAffinity: None

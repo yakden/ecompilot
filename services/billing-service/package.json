@@ -1,0 +1,44 @@
+{
+  "name": "@ecompilot/billing-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Subscription billing and plan management",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "type-check": "tsc --project tsconfig.json --noEmit",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rimraf dist .tsbuildinfo"
+  },
+  "dependencies": {
+    "@ecompilot/event-contracts": "workspace:*",
+    "@ecompilot/shared-auth": "workspace:*",
+    "@ecompilot/shared-observability": "workspace:*",
+    "@ecompilot/shared-types": "workspace:*",
+    "fastify": "^5.0.0",
+    "@fastify/helmet": "^12.0.0",
+    "@fastify/cors": "^10.0.0",
+    "@fastify/rate-limit": "^10.0.0",
+    "fastify-raw-body": "^5.0.0",
+    "stripe": "^14.0.0",
+    "nats": "^2.28.0",
+    "drizzle-orm": "^0.33.0",
+    "pg": "^8.12.0",
+    "zod": "^3.23.8",
+    "pino": "^9.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "@types/pg": "^8.11.6",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

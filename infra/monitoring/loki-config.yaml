@@ -1,0 +1,177 @@
+# ============================================================
+# Loki Configuration — EcomPilot PL
+# ============================================================
+# Storage: local filesystem (BoltDB shipper + filesystem chunks)
+# Retention: 30 days
+# Auth: single-tenant (multi-tenancy disabled for simplicity)
+# ============================================================
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+  grpc_server_max_recv_msg_size: 104857600   # 100 MiB
+  grpc_server_max_send_msg_size: 104857600   # 100 MiB
+
+# ============================================================
+# Common storage config shared across components
+# ============================================================
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+# ============================================================
+# Query range / caching
+# ============================================================
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
+  cache_results: true
+  parallelise_shardable_queries: true
+  align_queries_with_step: true
+
+# ============================================================
+# Schema — use TSDB index (boltdb-shipper for older data)
+# ============================================================
+schema_config:
+  configs:
+    - from: "2024-01-01"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: loki_index_
+        period: 24h
+
+# ============================================================
+# Storage configuration
+# ============================================================
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/index
+    cache_location: /loki/index_cache
+    cache_ttl: 24h
+  filesystem:
+    directory: /loki/chunks
+
+# ============================================================
+# Compactor — handles retention enforcement
+# ============================================================
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+  delete_request_store: filesystem
+
+# ============================================================
+# Ingestion limits
+# ============================================================
+limits_config:
+  # Retention — enforced by compactor
+  retention_period: 720h    # 30 days
+
+  # Ingestion rate limits
+  ingestion_rate_mb: 16
+  ingestion_burst_size_mb: 32
+  per_stream_rate_limit: 3MB
+  per_stream_rate_limit_burst: 15MB
+
+  # Query limits
+  max_query_length: 721h        # Slightly over 30 days for range queries
+  max_query_parallelism: 32
+  max_entries_limit_per_query: 50000
+  max_cache_freshness_per_query: 10m
+
+  # Cardinality limits
+  max_label_names_per_series: 30
+  max_label_value_length: 2048
+  max_streams_per_user: 10000
+  max_global_streams_per_user: 10000
+  max_chunks_per_query: 2000000
+
+  # Log line size
+  max_line_size: 256000         # 256 KB per log line
+
+  # Stream deduplication
+  unordered_writes: true
+
+  # Ruler
+  ruler_evaluation_interval: 1m
+  ruler_max_rules_per_rule_group: 100
+  ruler_max_rule_groups_per_tenant: 20
+
+  # Split and cache
+  split_queries_by_interval: 15m
+  query_timeout: 120s
+
+# ============================================================
+# Ruler (alerting rules in Loki)
+# ============================================================
+ruler:
+  alertmanager_url: http://alertmanager:9093
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  rule_path: /loki/rules_tmp
+  ring:
+    kvstore:
+      store: inmemory
+  enable_api: true
+
+# ============================================================
+# Frontend / query frontend
+# ============================================================
+frontend:
+  log_queries_longer_than: 5s
+  compress_responses: true
+  max_outstanding_per_tenant: 256
+
+frontend_worker:
+  frontend_address: ""
+  grpc_client_config:
+    max_recv_msg_size: 104857600
+
+# ============================================================
+# Analytics
+# ============================================================
+analytics:
+  reporting_enabled: false
+
+# ============================================================
+# Chunk store / table manager
+# ============================================================
+chunk_store_config:
+  chunk_cache_config:
+    embedded_cache:
+      enabled: true
+      max_size_mb: 200
+      ttl: 1h
+
+# ============================================================
+# Table manager (legacy but required for retention on some backends)
+# ============================================================
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 720h   # 30 days
+
+# ============================================================
+# Memberlist (single node — no clustering)
+# ============================================================
+memberlist:
+  join_members: []

@@ -1,0 +1,165 @@
+# ============================================================
+# Prometheus Configuration — EcomPilot PL
+# ============================================================
+# Scrape interval: 15s
+# Evaluation interval: 15s
+# Remote write: disabled (add endpoint if using Grafana Cloud)
+# ============================================================
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: ecompilot-prod
+    environment: production
+    region: eu-central-1
+
+# Load alerting rules from all yaml files under /rules/
+rule_files:
+  - "/etc/prometheus/rules/*.yaml"
+
+# Alertmanager endpoints
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+      timeout: 10s
+      api_version: v2
+
+# ============================================================
+# Scrape configurations
+# ============================================================
+scrape_configs:
+
+  # --- Prometheus self-monitoring ---
+  - job_name: prometheus
+    honor_labels: true
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          service: prometheus
+
+  # --- OTel Collector metrics endpoint ---
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8889"]
+        labels:
+          service: otel-collector
+    metric_relabel_configs:
+      # Drop high-cardinality internal otel metrics we don't need
+      - source_labels: [__name__]
+        regex: "otelcol_process_.*"
+        action: keep
+
+  # --- All 16 EcomPilot microservices (port 9464 = OTLP Prometheus exporter) ---
+  - job_name: ecompilot-services
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "auth-service:9464"
+          - "analytics-service:9464"
+          - "suppliers-service:9464"
+          - "calc-service:9464"
+          - "ai-service:9464"
+          - "billing-service:9464"
+          - "content-service:9464"
+          - "legal-service:9464"
+          - "academy-service:9464"
+          - "community-service:9464"
+          - "notification-service:9464"
+          - "api-gateway:9464"
+          - "marketplace-hub:9464"
+          - "logistics-engine:9464"
+          - "ksef-service:9464"
+          - "payment-reconciliation:9464"
+    relabel_configs:
+      # Extract hostname as service label
+      - source_labels: [__address__]
+        regex: "([^:]+):.*"
+        target_label: service
+        replacement: "$1"
+      # Carry the instance address through
+      - source_labels: [__address__]
+        target_label: instance
+    metric_relabel_configs:
+      # Normalise histogram bucket labels
+      - source_labels: [__name__]
+        regex: ".*_bucket"
+        target_label: metric_type
+        replacement: histogram_bucket
+
+  # --- Node Exporter (host-level CPU / memory / disk / network) ---
+  - job_name: node-exporter
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - "node-exporter:9100"
+        labels:
+          service: node-exporter
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  # --- Kong API Gateway metrics ---
+  - job_name: kong
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "kong:8001"
+        labels:
+          service: kong-gateway
+    metric_relabel_configs:
+      # Keep only the most useful Kong metrics to control cardinality
+      - source_labels: [__name__]
+        regex: "kong_(http_requests_total|latency|bandwidth|nginx_.*|upstream_.*)"
+        action: keep
+
+  # --- PostgreSQL exporter ---
+  - job_name: postgres
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - "postgres-exporter:9187"
+        labels:
+          service: postgresql
+
+  # --- Redis exporter ---
+  - job_name: redis
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - "redis-exporter:9121"
+        labels:
+          service: redis
+
+  # --- NATS exporter ---
+  - job_name: nats
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - "nats-exporter:7777"
+        labels:
+          service: nats
+
+  # --- Loki self-monitoring ---
+  - job_name: loki
+    static_configs:
+      - targets:
+          - "loki:3100"
+        labels:
+          service: loki
+    metrics_path: /metrics
+
+  # --- Grafana self-monitoring ---
+  - job_name: grafana
+    static_configs:
+      - targets:
+          - "grafana:3000"
+        labels:
+          service: grafana
+    metrics_path: /metrics

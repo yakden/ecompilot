@@ -1,0 +1,96 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: auth-service
+    url: http://auth-service:3000
+    routes:
+      - name: auth-routes
+        paths: ["/api/v1/auth"]
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: local
+
+  - name: analytics-service
+    url: http://analytics-service:3000
+    routes:
+      - name: analytics-routes
+        paths: ["/api/v1/analytics"]
+        methods: ["GET", "POST"]
+
+  - name: ai-service
+    url: http://ai-service:3000
+    routes:
+      - name: ai-routes
+        paths: ["/api/v1/ai"]
+        methods: ["GET", "POST"]
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 20
+          policy: local
+
+  - name: billing-service
+    url: http://billing-service:3000
+    routes:
+      - name: billing-routes
+        paths: ["/api/v1/billing"]
+        methods: ["GET", "POST", "PUT"]
+
+  - name: marketplace-hub
+    url: http://marketplace-hub:3000
+    routes:
+      - name: marketplace-routes
+        paths: ["/api/v1/marketplace"]
+        methods: ["GET", "POST", "PUT", "DELETE"]
+
+  - name: content-service
+    url: http://content-service:3000
+    routes:
+      - name: content-routes
+        paths: ["/api/v1/content"]
+        methods: ["GET", "POST", "PUT", "DELETE"]
+
+  - name: suppliers-service
+    url: http://suppliers-service:3000
+    routes:
+      - name: suppliers-routes
+        paths: ["/api/v1/suppliers"]
+        methods: ["GET", "POST"]
+
+  - name: logistics-engine
+    url: http://logistics-engine:3000
+    routes:
+      - name: logistics-routes
+        paths: ["/api/v1/logistics"]
+        methods: ["GET", "POST", "PUT"]
+
+  - name: ksef-service
+    url: http://ksef-service:3000
+    routes:
+      - name: ksef-routes
+        paths: ["/api/v1/ksef"]
+        methods: ["GET", "POST"]
+
+plugins:
+  - name: cors
+    config:
+      origins: ["http://localhost:3000", "https://app.ecompilot.pl"]
+      methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+      headers: ["Accept", "Authorization", "Content-Type", "X-Request-Id"]
+      credentials: true
+
+  - name: request-id
+    config:
+      header_name: X-Request-Id
+      generator: uuid
+
+  - name: prometheus
+    config:
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true
+      upstream_health_metrics: true

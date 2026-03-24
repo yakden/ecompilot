@@ -1,0 +1,327 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# NATS 2.10 with JetStream — 3-node StatefulSet cluster
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nats
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/part-of: ecompilot
+    app.kubernetes.io/component: messaging
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/part-of: ecompilot
+data:
+  nats.conf: |
+    # ── Server identity ───────────────────────────────────────────────────
+    server_name: $POD_NAME
+
+    # ── Networking ────────────────────────────────────────────────────────
+    listen: 0.0.0.0:4222
+    http: 0.0.0.0:8222
+    server_tags: ["ecompilot"]
+
+    # ── Clustering ────────────────────────────────────────────────────────
+    cluster {
+      name: ecompilot-nats
+      listen: 0.0.0.0:6222
+      routes: [
+        "nats://nats-0.nats-headless.ecompilot.svc.cluster.local:6222",
+        "nats://nats-1.nats-headless.ecompilot.svc.cluster.local:6222",
+        "nats://nats-2.nats-headless.ecompilot.svc.cluster.local:6222"
+      ]
+      connect_retries: 30
+    }
+
+    # ── JetStream ─────────────────────────────────────────────────────────
+    jetstream {
+      store_dir: /data/jetstream
+      max_memory_store: 1GB
+      max_file_store: 20GB
+    }
+
+    # ── Authentication ────────────────────────────────────────────────────
+    authorization {
+      timeout: 5
+    }
+
+    # ── TLS ───────────────────────────────────────────────────────────────
+    # tls {
+    #   cert_file: /etc/nats/tls/tls.crt
+    #   key_file: /etc/nats/tls/tls.key
+    #   ca_file: /etc/nats/tls/ca.crt
+    #   verify: true
+    # }
+
+    # ── Limits ────────────────────────────────────────────────────────────
+    max_connections: 10000
+    max_subscriptions: 0
+    max_control_line: 4096
+    max_payload: 8MB
+    max_pending: 256MB
+    write_deadline: "10s"
+    ping_interval: "2m"
+    ping_max: 2
+
+    # ── Logging ───────────────────────────────────────────────────────────
+    logtime: true
+    debug: false
+    trace: false
+    log_size_limit: 100MB
+
+    # ── Accounts ──────────────────────────────────────────────────────────
+    accounts: {
+      ecompilot: {
+        users: [
+          { user: "ecompilot", password: $NATS_PASSWORD }
+        ]
+        jetstream: enabled
+        limits: {
+          max_connections: 5000
+          max_subscriptions: 10000
+          max_payload: 8MB
+          max_inflight: 50000
+        }
+      }
+      $SYS: { users: [{ user: sys, password: $NATS_SYS_PASSWORD }] }
+    }
+    system_account: "$SYS"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/part-of: ecompilot
+    app.kubernetes.io/component: messaging
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "7777"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: nats
+  ports:
+    - name: client
+      port: 4222
+      targetPort: 4222
+      protocol: TCP
+    - name: monitor
+      port: 8222
+      targetPort: 8222
+      protocol: TCP
+    - name: metrics
+      port: 7777
+      targetPort: 7777
+      protocol: TCP
+---
+# Headless service for StatefulSet peer discovery
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats-headless
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/part-of: ecompilot
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: nats
+  ports:
+    - name: client
+      port: 4222
+      targetPort: 4222
+    - name: cluster
+      port: 6222
+      targetPort: 6222
+    - name: monitor
+      port: 8222
+      targetPort: 8222
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nats
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: nats
+    app.kubernetes.io/part-of: ecompilot
+    app.kubernetes.io/component: messaging
+    app.kubernetes.io/version: "2.10"
+spec:
+  serviceName: nats-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nats
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nats
+        app.kubernetes.io/part-of: ecompilot
+        app.kubernetes.io/component: messaging
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "7777"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: nats
+      automountServiceAccountToken: false
+      shareProcessNamespace: true
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: nats
+      containers:
+        - name: nats
+          image: nats:2.10-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: client
+              containerPort: 4222
+              protocol: TCP
+            - name: cluster
+              containerPort: 6222
+              protocol: TCP
+            - name: monitor
+              containerPort: 8222
+              protocol: TCP
+          command:
+            - nats-server
+            - --config
+            - /etc/nats/nats.conf
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NATS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: NATS_PASSWORD
+            - name: NATS_SYS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nats-secret
+                  key: NATS_SYS_PASSWORD
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /healthz?js-enabled-only=true
+              port: 8222
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /healthz?js-server-only=true
+              port: 8222
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+          volumeMounts:
+            - name: nats-data
+              mountPath: /data
+            - name: nats-config-vol
+              mountPath: /etc/nats
+            - name: tmp
+              mountPath: /tmp
+        - name: nats-exporter
+          image: natsio/prometheus-nats-exporter:0.15.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -port=7777
+            - -connz
+            - -routez
+            - -subz
+            - -varz
+            - -jsz=all
+            - http://localhost:8222
+          ports:
+            - name: metrics
+              containerPort: 7777
+              protocol: TCP
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: nats-config-vol
+          configMap:
+            name: nats-config
+        - name: tmp
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: nats-data
+        labels:
+          app.kubernetes.io/name: nats
+          app.kubernetes.io/part-of: ecompilot
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: gp3
+        resources:
+          requests:
+            storage: 20Gi

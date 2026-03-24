@@ -1,0 +1,32 @@
+# ============================================================
+# Grafana Dashboard Provider — EcomPilot PL
+# ============================================================
+# Loaded at Grafana startup from /etc/grafana/provisioning/dashboards/
+# Grafana watches the dashboard path and hot-reloads changes.
+# ============================================================
+
+apiVersion: 1
+
+providers:
+
+  # --- EcomPilot dashboards loaded from mounted volume ---
+  - name: EcomPilot
+    orgId: 1
+    type: file
+    disableDeletion: false       # Allow UI deletion (set true in prod if desired)
+    updateIntervalSeconds: 30    # Re-check dashboard files every 30 s
+    allowUiUpdates: true         # Allow edits from UI (changes written to disk)
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: true  # Sub-directories become Grafana folders
+
+  # --- Kubernetes dashboards (optional: mounted from configmap) ---
+  - name: Kubernetes
+    orgId: 1
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 60
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards/kubernetes
+      foldersFromFilesStructure: false

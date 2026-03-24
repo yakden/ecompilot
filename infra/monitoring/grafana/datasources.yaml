@@ -1,0 +1,108 @@
+# ============================================================
+# Grafana Datasource Provisioning — EcomPilot PL
+# ============================================================
+# Loaded at Grafana startup from /etc/grafana/provisioning/datasources/
+# Changes take effect on container restart or grafana-cli reload.
+# ============================================================
+
+apiVersion: 1
+
+# Datasources to add or update. Existing datasources with the
+# same name are updated; new ones are created.
+datasources:
+
+  # --- Prometheus (default, used by all dashboards) ---
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: "15s"
+      queryTimeout: "60s"
+      # Link trace IDs embedded in metrics to Jaeger
+      exemplarTraceIdDestinations:
+        - name: traceID
+          datasourceUid: jaeger
+          urlDisplayLabel: "View trace in Jaeger"
+      prometheusType: Prometheus
+      prometheusVersion: "2.45.0"
+      incrementalQuerying: true
+      incrementalQueryOverlapWindow: "10m"
+      cacheLevel: "Low"
+
+  # --- Loki (log aggregation) ---
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: false
+    editable: false
+    jsonData:
+      maxLines: 5000
+      timeout: "60"
+      # Link trace IDs in log lines to Jaeger
+      derivedFields:
+        - matcherRegex: "traceID=(\\w+)"
+          name: traceID
+          url: "$${__value.raw}"
+          datasourceUid: jaeger
+          urlDisplayLabel: "View trace in Jaeger"
+        - matcherRegex: "\"traceId\":\"(\\w+)\""
+          name: traceId
+          url: "$${__value.raw}"
+          datasourceUid: jaeger
+          urlDisplayLabel: "View trace in Jaeger"
+      alertmanagerUid: alertmanager
+
+  # --- Jaeger (distributed tracing) ---
+  - name: Jaeger
+    type: jaeger
+    uid: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    isDefault: false
+    editable: false
+    jsonData:
+      # Link traces back to logs in Loki
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+        filterByTraceID: true
+        filterBySpanID: false
+        customQuery: false
+        tags:
+          - key: service.name
+            value: service
+      # Link traces to metrics in Prometheus
+      tracesToMetrics:
+        datasourceUid: prometheus
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+        tags:
+          - key: service.name
+            value: service
+        queries:
+          - name: "Request Rate"
+            query: "sum(rate(http_server_request_duration_seconds_count{$$__tags}[$__rate_interval]))"
+          - name: "Error Rate"
+            query: "sum(rate(http_server_request_duration_seconds_count{$$__tags, http_response_status_code=~\"5..\"}[$__rate_interval]))"
+      nodeGraph:
+        enabled: true
+
+  # --- Alertmanager (alert routing UI integration) ---
+  - name: Alertmanager
+    type: alertmanager
+    uid: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    isDefault: false
+    editable: false
+    jsonData:
+      implementation: prometheus
+      handleGrafanaManagedAlerts: false

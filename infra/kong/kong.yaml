@@ -1,0 +1,804 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EcomPilot PL — Kong 3.6 Declarative Configuration
+# Full gateway config: services, routes, plugins, consumers
+# ─────────────────────────────────────────────────────────────────────────────
+
+_format_version: "3.0"
+_transform: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Global plugins (applied to every route unless overridden)
+# ─────────────────────────────────────────────────────────────────────────────
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - "https://ecompilot.com"
+        - "https://app.ecompilot.com"
+        - "http://localhost:3000"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+        - HEAD
+      headers:
+        - Accept
+        - Accept-Language
+        - Authorization
+        - Content-Type
+        - X-Request-Id
+        - X-User-ID
+        - X-User-Plan
+        - X-User-Language
+      exposed_headers:
+        - X-Request-Id
+        - X-Plan-Limit
+        - X-Plan-Used
+        - X-Plan-Remaining
+        - X-RateLimit-Limit-Minute
+        - X-RateLimit-Remaining-Minute
+        - X-RateLimit-Limit-Hour
+        - X-RateLimit-Remaining-Hour
+      credentials: true
+      max_age: 3600
+      preflight_continue: false
+
+  - name: request-id
+    config:
+      header_name: X-Request-Id
+      generator: uuid#4
+      echo_downstream: true
+
+  - name: prometheus
+    config:
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true
+      upstream_health_metrics: true
+      per_consumer: false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Services and Routes
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # auth-service  (port 3001)
+  # Public endpoints — rate-limited only, no JWT required
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: auth-service
+    url: http://auth-service:3001
+    connect_timeout: 5000
+    write_timeout: 10000
+    read_timeout: 10000
+    retries: 2
+    tags: ["auth", "public"]
+    routes:
+      - name: auth-login-register
+        paths:
+          - /api/v1/auth
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        preserve_host: false
+        tags: ["auth"]
+      - name: auth-oauth
+        paths:
+          - /api/v1/oauth
+        methods:
+          - GET
+          - POST
+          - OPTIONS
+        strip_path: false
+        tags: ["auth", "oauth"]
+      - name: auth-mfa
+        paths:
+          - /api/v1/mfa
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        tags: ["auth", "mfa"]
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 30
+          hour: 200
+          policy: redis
+          redis:
+            host: redis
+            port: 6379
+            database: 0
+          fault_tolerant: true
+          hide_client_headers: false
+          error_code: 429
+          error_message: "Rate limit exceeded. Please slow down."
+          sync_rate: -1
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # analytics-service  (port 3002)
+  # JWT required. Free plan: 5 requests/month
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: analytics-service
+    url: http://analytics-service:3002
+    connect_timeout: 5000
+    write_timeout: 30000
+    read_timeout: 30000
+    retries: 1
+    tags: ["analytics", "protected"]
+    routes:
+      - name: analytics-routes
+        paths:
+          - /api/v1/analytics
+        methods:
+          - GET
+          - POST
+          - OPTIONS
+        strip_path: false
+        tags: ["analytics"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          cookie_names: []
+          uri_param_names: []
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+          remove:
+            headers: []
+      - name: ecompilot-plan-limiter
+        config:
+          limits:
+            free:
+              monthly: 5
+            pro:
+              monthly: -1
+            business:
+              monthly: -1
+          redis_host: redis
+          redis_port: 6379
+          redis_prefix: "ecompilot:plan"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # calc-service  (port 3003)
+  # /api/v1/calc — public for basic calculations, JWT for history
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: calc-service-public
+    url: http://calc-service:3003
+    connect_timeout: 5000
+    write_timeout: 10000
+    read_timeout: 10000
+    retries: 2
+    tags: ["calc", "public"]
+    routes:
+      - name: calc-basic-routes
+        paths:
+          - /api/v1/calc
+        methods:
+          - GET
+          - POST
+          - OPTIONS
+        strip_path: false
+        tags: ["calc", "public"]
+
+  - name: calc-service-protected
+    url: http://calc-service:3003
+    connect_timeout: 5000
+    write_timeout: 10000
+    read_timeout: 10000
+    retries: 2
+    tags: ["calc", "protected"]
+    routes:
+      - name: calc-history-routes
+        paths:
+          - /api/v1/calc/history
+        methods:
+          - GET
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        tags: ["calc", "history"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # ai-service  (port 3004)
+  # JWT required. Free plan: 3 requests/day
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: ai-service
+    url: http://ai-service:3004
+    connect_timeout: 5000
+    write_timeout: 120000
+    read_timeout: 120000
+    retries: 0
+    tags: ["ai", "protected"]
+    routes:
+      - name: ai-routes
+        paths:
+          - /api/v1/ai
+        methods:
+          - GET
+          - POST
+          - OPTIONS
+        strip_path: false
+        tags: ["ai"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+      - name: ecompilot-plan-limiter
+        config:
+          limits:
+            free:
+              daily: 3
+            pro:
+              daily: -1
+            business:
+              daily: -1
+          redis_host: redis
+          redis_port: 6379
+          redis_prefix: "ecompilot:plan"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # suppliers-service  (port 3005)
+  # JWT required. Free plan: blocked entirely
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: suppliers-service
+    url: http://suppliers-service:3005
+    connect_timeout: 5000
+    write_timeout: 15000
+    read_timeout: 15000
+    retries: 2
+    tags: ["suppliers", "protected"]
+    routes:
+      - name: suppliers-routes
+        paths:
+          - /api/v1/suppliers
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        tags: ["suppliers"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+      - name: ecompilot-plan-limiter
+        config:
+          limits:
+            free:
+              blocked: true
+            pro:
+              monthly: -1
+            business:
+              monthly: -1
+          redis_host: redis
+          redis_port: 6379
+          redis_prefix: "ecompilot:plan"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # billing-service  (port 3006)
+  # /api/v1/billing      — JWT required
+  # /api/v1/billing/webhook — NO JWT (Stripe signs with HMAC)
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: billing-service-protected
+    url: http://billing-service:3006
+    connect_timeout: 5000
+    write_timeout: 30000
+    read_timeout: 30000
+    retries: 1
+    tags: ["billing", "protected"]
+    routes:
+      - name: billing-routes
+        paths:
+          - /api/v1/billing
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        # /webhook is handled by billing-service-webhook below
+        tags: ["billing"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+
+  - name: billing-service-webhook
+    url: http://billing-service:3006
+    connect_timeout: 5000
+    write_timeout: 30000
+    read_timeout: 30000
+    retries: 0
+    tags: ["billing", "webhook", "public"]
+    routes:
+      - name: billing-webhook-route
+        paths:
+          - /api/v1/billing/webhook
+        methods:
+          - POST
+          - OPTIONS
+        strip_path: false
+        tags: ["billing", "webhook"]
+    # No JWT plugin — Stripe signature verified by the service itself
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # content-service  (port 3007)
+  # JWT required. Request body capped at 10 MB.
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: content-service
+    url: http://content-service:3007
+    connect_timeout: 5000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 1
+    tags: ["content", "protected"]
+    routes:
+      - name: content-routes
+        paths:
+          - /api/v1/content
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        tags: ["content"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+      - name: request-size-limiting
+        config:
+          allowed_payload_size: 10
+          size_unit: megabytes
+          require_content_length: false
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # legal-service  (port 3008)
+  # Fully public — no JWT required (ToS, Privacy Policy, etc.)
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: legal-service
+    url: http://legal-service:3008
+    connect_timeout: 5000
+    write_timeout: 10000
+    read_timeout: 10000
+    retries: 2
+    tags: ["legal", "public"]
+    routes:
+      - name: legal-routes
+        paths:
+          - /api/v1/legal
+        methods:
+          - GET
+          - OPTIONS
+        strip_path: false
+        tags: ["legal"]
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # academy-service  (port 3009)
+  # JWT required for protected (enrolled) routes
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: academy-service-public
+    url: http://academy-service:3009
+    connect_timeout: 5000
+    write_timeout: 10000
+    read_timeout: 10000
+    retries: 2
+    tags: ["academy", "public"]
+    routes:
+      - name: academy-catalog-routes
+        paths:
+          - /api/v1/academy
+        methods:
+          - GET
+          - OPTIONS
+        strip_path: false
+        tags: ["academy", "catalog"]
+
+  - name: academy-service-protected
+    url: http://academy-service:3009
+    connect_timeout: 5000
+    write_timeout: 10000
+    read_timeout: 10000
+    retries: 2
+    tags: ["academy", "protected"]
+    routes:
+      - name: academy-enrolled-routes
+        paths:
+          - /api/v1/academy/enroll
+          - /api/v1/academy/progress
+          - /api/v1/academy/certificates
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        tags: ["academy", "enrolled"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # community-service  (port 3010)
+  # GET public, write operations require JWT
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: community-service-public
+    url: http://community-service:3010
+    connect_timeout: 5000
+    write_timeout: 10000
+    read_timeout: 10000
+    retries: 2
+    tags: ["community", "public"]
+    routes:
+      - name: community-read-routes
+        paths:
+          - /api/v1/community
+        methods:
+          - GET
+          - OPTIONS
+        strip_path: false
+        tags: ["community", "read"]
+
+  - name: community-service-protected
+    url: http://community-service:3010
+    connect_timeout: 5000
+    write_timeout: 15000
+    read_timeout: 15000
+    retries: 1
+    tags: ["community", "protected"]
+    routes:
+      - name: community-write-routes
+        paths:
+          - /api/v1/community
+        methods:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        strip_path: false
+        tags: ["community", "write"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # notification-service  (port 3011)
+  # JWT required
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: notification-service
+    url: http://notification-service:3011
+    connect_timeout: 5000
+    write_timeout: 10000
+    read_timeout: 10000
+    retries: 2
+    tags: ["notifications", "protected"]
+    routes:
+      - name: notification-routes
+        paths:
+          - /api/v1/notifications
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        tags: ["notifications"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # marketplace-hub  (port 3012)
+  # JWT required
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: marketplace-hub
+    url: http://marketplace-hub:3012
+    connect_timeout: 5000
+    write_timeout: 30000
+    read_timeout: 30000
+    retries: 1
+    tags: ["marketplace", "protected"]
+    routes:
+      - name: marketplace-routes
+        paths:
+          - /api/v1/marketplace
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        tags: ["marketplace"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # logistics-engine  (port 3013)
+  # JWT required
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: logistics-engine
+    url: http://logistics-engine:3013
+    connect_timeout: 5000
+    write_timeout: 30000
+    read_timeout: 30000
+    retries: 1
+    tags: ["logistics", "protected"]
+    routes:
+      - name: logistics-routes
+        paths:
+          - /api/v1/logistics
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        tags: ["logistics"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # ksef-service  (port 3014)
+  # JWT required (Polish e-Invoice system)
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: ksef-service
+    url: http://ksef-service:3014
+    connect_timeout: 5000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 1
+    tags: ["ksef", "protected"]
+    routes:
+      - name: ksef-routes
+        paths:
+          - /api/v1/ksef
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        tags: ["ksef"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # payment-reconciliation  (port 3015)
+  # JWT required
+  # ───────────────────────────────────────────────────────────────────────────
+  - name: payment-reconciliation
+    url: http://payment-reconciliation:3015
+    connect_timeout: 5000
+    write_timeout: 30000
+    read_timeout: 30000
+    retries: 1
+    tags: ["payments", "protected"]
+    routes:
+      - name: payments-routes
+        paths:
+          - /api/v1/payments
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        strip_path: false
+        tags: ["payments"]
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+          maximum_expiration: 86400
+          run_on_preflight: false
+          header_names:
+            - Authorization
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "X-User-ID:$(jwt.claims.sub)"
+              - "X-User-Plan:$(jwt.claims.plan)"
+              - "X-User-Language:$(jwt.claims.language)"

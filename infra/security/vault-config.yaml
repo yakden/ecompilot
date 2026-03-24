@@ -1,0 +1,326 @@
+# =============================================================================
+# HashiCorp Vault Configuration for EcomPilot PL
+#
+# - Kubernetes auth method for pod-level identity
+# - KV v2 secret engine
+# - Automatic secret rotation schedules
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Secret Engine Configuration
+# ---------------------------------------------------------------------------
+secret_engines:
+  - path: secret
+    type: kv-v2
+    description: "EcomPilot application secrets"
+    options:
+      max_versions: 10
+      cas_required: false
+      delete_version_after: "0s"  # never auto-delete; rely on max_versions
+
+  - path: database
+    type: database
+    description: "Dynamic database credentials for EcomPilot services"
+
+  - path: transit
+    type: transit
+    description: "Encryption-as-a-Service for PII field encryption"
+
+# ---------------------------------------------------------------------------
+# Kubernetes Auth Method
+# ---------------------------------------------------------------------------
+auth_methods:
+  - type: kubernetes
+    path: kubernetes
+    config:
+      # In-cluster config: Vault auto-discovers the K8s API
+      kubernetes_host: "https://kubernetes.default.svc.cluster.local"
+      # The Vault SA JWT is mounted automatically by the injector
+      token_reviewer_jwt: ""  # uses pod service account
+      kubernetes_ca_cert: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+      issuer: "https://kubernetes.default.svc.cluster.local"
+      disable_local_ca_jwt: false
+
+# ---------------------------------------------------------------------------
+# Kubernetes Auth Roles — one per service
+# Each role binds a K8s service account to a Vault policy.
+# ---------------------------------------------------------------------------
+kubernetes_roles:
+  - name: auth-service
+    bound_service_account_names:
+      - auth-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - auth-service
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: billing-service
+    bound_service_account_names:
+      - billing-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - billing-service
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: ai-service
+    bound_service_account_names:
+      - ai-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - ai-service
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: api-gateway
+    bound_service_account_names:
+      - api-gateway
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - api-gateway
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: analytics-service
+    bound_service_account_names:
+      - analytics-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - analytics-service
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: academy-service
+    bound_service_account_names:
+      - academy-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - academy-service
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: calc-service
+    bound_service_account_names:
+      - calc-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - calc-service
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: community-service
+    bound_service_account_names:
+      - community-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - community-service
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: content-service
+    bound_service_account_names:
+      - content-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - content-service
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: ksef-service
+    bound_service_account_names:
+      - ksef-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - ksef-service
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: legal-service
+    bound_service_account_names:
+      - legal-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - legal-service
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: logistics-engine
+    bound_service_account_names:
+      - logistics-engine
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - logistics-engine
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: marketplace-hub
+    bound_service_account_names:
+      - marketplace-hub
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - marketplace-hub
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: notification-service
+    bound_service_account_names:
+      - notification-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - notification-service
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: payment-reconciliation
+    bound_service_account_names:
+      - payment-reconciliation
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - payment-reconciliation
+    ttl: 1h
+    max_ttl: 4h
+
+  - name: suppliers-service
+    bound_service_account_names:
+      - suppliers-service
+    bound_service_account_namespaces:
+      - ecompilot
+    policies:
+      - suppliers-service
+    ttl: 1h
+    max_ttl: 4h
+
+# ---------------------------------------------------------------------------
+# Database Secret Engine — Dynamic Credentials
+# ---------------------------------------------------------------------------
+database_connections:
+  - name: ecompilot-postgres
+    plugin_name: postgresql-database-plugin
+    connection_url: "postgresql://{{username}}:{{password}}@postgres.ecompilot.svc.cluster.local:5432/ecompilot?sslmode=require"
+    allowed_roles:
+      - "auth-db-role"
+      - "billing-db-role"
+      - "analytics-db-role"
+      - "marketplace-db-role"
+      - "community-db-role"
+      - "content-db-role"
+      - "ksef-db-role"
+      - "legal-db-role"
+      - "logistics-db-role"
+      - "notification-db-role"
+      - "payment-reconciliation-db-role"
+      - "suppliers-db-role"
+      - "academy-db-role"
+      - "calc-db-role"
+    # Root credentials are rotated on first mount
+    username: "vault_admin"
+    password: "REPLACE_VIA_VAULT_INIT"
+
+# ---------------------------------------------------------------------------
+# Secret Rotation Schedules
+# ---------------------------------------------------------------------------
+rotation_schedules:
+  # Database passwords: rotate every 24 hours
+  database_credentials:
+    default_ttl: 24h
+    max_ttl: 48h
+    rotation_period: 24h
+    revocation_statements:
+      - "ALTER ROLE \"{{name}}\" NOLOGIN;"
+      - "DROP ROLE IF EXISTS \"{{name}}\";"
+    creation_statements:
+      - |
+        CREATE ROLE "{{name}}" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';
+        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{{name}}";
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{{name}}";
+
+  # API keys (Stripe, OpenAI, marketplace tokens): rotate every 30 days
+  api_keys:
+    default_ttl: 720h   # 30 days
+    max_ttl: 1440h       # 60 days
+    rotation_period: 720h
+    secrets:
+      - secret/data/billing/stripe-api-key
+      - secret/data/ai/openai-api-key
+      - secret/data/ai/pinecone-api-key
+      - secret/data/marketplace/allegro-api-key
+      - secret/data/marketplace/amazon-api-key
+      - secret/data/notification/sendgrid-api-key
+      - secret/data/ksef/ksef-signing-key
+
+  # JWT signing keys: rotate every 7 days (with 14-day overlap for validation)
+  jwt_signing_keys:
+    default_ttl: 168h   # 7 days
+    max_ttl: 336h        # 14 days
+    rotation_period: 168h
+    overlap_period: 168h # old key remains valid for verification
+    secrets:
+      - secret/data/auth/jwt-signing-key
+      - secret/data/auth/jwt-refresh-signing-key
+
+  # Encryption keys (PII at rest): rotate every 90 days
+  encryption_keys:
+    default_ttl: 2160h  # 90 days
+    max_ttl: 4320h       # 180 days
+    rotation_period: 2160h
+    # Re-encryption of existing data handled by migration job
+    secrets:
+      - secret/data/auth/pii-encryption-key
+      - secret/data/marketplace/token-encryption-key
+      - secret/data/billing/card-encryption-key
+
+# ---------------------------------------------------------------------------
+# Transit Engine — Named Encryption Keys
+# ---------------------------------------------------------------------------
+transit_keys:
+  - name: pii-encryption
+    type: aes256-gcm96
+    deletion_allowed: false
+    exportable: false
+    allow_plaintext_backup: false
+    min_decryption_version: 1
+    min_encryption_version: 0  # always use latest
+
+  - name: token-encryption
+    type: aes256-gcm96
+    deletion_allowed: false
+    exportable: false
+    allow_plaintext_backup: false
+    min_decryption_version: 1
+    min_encryption_version: 0
+
+# ---------------------------------------------------------------------------
+# Audit Configuration
+# ---------------------------------------------------------------------------
+audit_devices:
+  - type: file
+    path: audit-file
+    options:
+      file_path: /vault/audit/vault-audit.log
+      log_raw: false
+      hmac_accessor: true
+      mode: "0600"
+      format: json
+
+  - type: syslog
+    path: audit-syslog
+    options:
+      tag: vault
+      facility: AUTH
+      log_raw: false

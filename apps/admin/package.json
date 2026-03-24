@@ -1,0 +1,27 @@
+{
+  "name": "@ecompilot/admin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EcomPilot PL — Admin dashboard (Next.js 14)",
+  "scripts": {
+    "dev": "next dev --port 3002",
+    "build": "next build",
+    "start": "next start --port 3002",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ecompilot/api-client": "workspace:*",
+    "@ecompilot/shared-types": "workspace:*",
+    "@ecompilot/shared-ui": "workspace:*",
+    "next": "^14.2.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.5.4"
+  }
+}

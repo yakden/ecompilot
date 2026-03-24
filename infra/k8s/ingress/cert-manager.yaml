@@ -1,0 +1,126 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# cert-manager ClusterIssuer — Let's Encrypt production + staging
+# Prerequisites: cert-manager >= 1.14 installed in the cluster
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-production
+  labels:
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/part-of: ecompilot
+    app.kubernetes.io/component: certificate-management
+spec:
+  acme:
+    # Let's Encrypt production ACME endpoint
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Email for expiry notifications and ToS agreement
+    email: infra@ecompilot.com
+    privateKeySecretRef:
+      name: letsencrypt-production-account-key
+    solvers:
+      # HTTP-01 challenge solver (primary)
+      - http01:
+          ingress:
+            class: nginx
+            podTemplate:
+              spec:
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 65534
+                  seccompProfile:
+                    type: RuntimeDefault
+                containers:
+                  - name: acmesolver
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                        drop:
+                          - ALL
+        selector:
+          dnsNames:
+            - api.ecompilot.com
+            - internal.ecompilot.com
+      # DNS-01 challenge solver via Route53 (for wildcard certs)
+      - dns01:
+          route53:
+            region: eu-central-1
+            # IRSA — cert-manager ServiceAccount gets IAM role via annotation
+            role: arn:aws:iam::ACCOUNT_ID:role/ecompilot-cert-manager
+        selector:
+          dnsNames:
+            - "*.ecompilot.com"
+---
+# Staging issuer for testing certificate issuance without hitting rate limits
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+  labels:
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/part-of: ecompilot
+    app.kubernetes.io/component: certificate-management
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: infra@ecompilot.com
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+        selector:
+          dnsNames:
+            - api-staging.ecompilot.com
+            - "*.staging.ecompilot.com"
+---
+# Pre-create Certificate resources so they are managed declaratively
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ecompilot-api-tls
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: ecompilot-api-tls
+    app.kubernetes.io/part-of: ecompilot
+spec:
+  secretName: ecompilot-api-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  commonName: api.ecompilot.com
+  dnsNames:
+    - api.ecompilot.com
+  duration: 2160h  # 90 days
+  renewBefore: 720h  # Renew 30 days before expiry
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+    rotationPolicy: Always
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ecompilot-wildcard-tls
+  namespace: ecompilot
+  labels:
+    app.kubernetes.io/name: ecompilot-wildcard-tls
+    app.kubernetes.io/part-of: ecompilot
+spec:
+  secretName: ecompilot-wildcard-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  commonName: "*.ecompilot.com"
+  dnsNames:
+    - "*.ecompilot.com"
+    - ecompilot.com
+  duration: 2160h
+  renewBefore: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+    rotationPolicy: Always

@@ -1,0 +1,333 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9.15.0"
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Type checking
+  # ─────────────────────────────────────────────────────────────────────────
+  type-check:
+    name: Type check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-typecheck-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-typecheck-${{ runner.os }}-
+
+      - name: Type check all packages
+        run: pnpm turbo run type-check --concurrency=4
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Lint
+  # ─────────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-lint-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-lint-${{ runner.os }}-
+
+      - name: Lint all packages
+        run: pnpm turbo run lint --concurrency=4
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Build shared packages
+  # ─────────────────────────────────────────────────────────────────────────
+  build-packages:
+    name: Build shared packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-pkgs-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-pkgs-${{ runner.os }}-
+
+      - name: Build shared packages
+        run: |
+          pnpm turbo run build --filter=@ecompilot/shared-types
+          pnpm turbo run build --filter=@ecompilot/event-contracts
+          pnpm turbo run build --filter=@ecompilot/shared-observability
+
+      - name: Upload package dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-dist
+          path: |
+            packages/shared-types/dist
+            packages/event-contracts/dist
+            packages/shared-observability/dist
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Test services — matrix strategy
+  # ─────────────────────────────────────────────────────────────────────────
+  test-services:
+    name: Test / ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: build-packages
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - auth-service
+          - analytics-service
+          - suppliers-service
+          - calc-service
+          - ai-service
+          - billing-service
+          - content-service
+          - legal-service
+          - academy-service
+          - community-service
+          - notification-service
+          - api-gateway
+          - marketplace-hub
+          - logistics-engine
+          - ksef-service
+          - payment-reconciliation
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: package-dist
+          path: packages
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-test-${{ matrix.service }}-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-test-${{ matrix.service }}-${{ runner.os }}-
+
+      - name: Run tests
+        env:
+          NODE_ENV: test
+          CI: "true"
+          SERVICE: ${{ matrix.service }}
+        run: pnpm turbo run test --filter=@ecompilot/$SERVICE
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-${{ matrix.service }}
+          path: services/${{ matrix.service }}/coverage
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Build all services (only after tests + checks pass)
+  # ─────────────────────────────────────────────────────────────────────────
+  build-services:
+    name: Build all services
+    runs-on: ubuntu-latest
+    needs: [test-services, type-check, lint]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-build-svc-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-build-svc-${{ runner.os }}-
+
+      - name: Build all services
+        run: pnpm turbo run build --filter="./services/*" --concurrency=4
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Docker build validation (on main branch only)
+  # ─────────────────────────────────────────────────────────────────────────
+  docker-build:
+    name: Docker build / ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: build-services
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - auth-service
+          - analytics-service
+          - api-gateway
+          - billing-service
+          - marketplace-hub
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        env:
+          SERVICE: ${{ matrix.service }}
+        with:
+          context: .
+          file: infra/docker/service.Dockerfile
+          build-args: SERVICE_NAME=${{ matrix.service }}
+          push: false
+          tags: ecompilot/${{ matrix.service }}:ci-${{ github.run_id }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # CI gate — all required checks must pass
+  # ─────────────────────────────────────────────────────────────────────────
+  ci-success:
+    name: CI passed
+    runs-on: ubuntu-latest
+    needs: [type-check, lint, test-services, build-services]
+    if: always()
+    steps:
+      - name: Verify all required jobs succeeded
+        env:
+          TYPE_CHECK_RESULT: ${{ needs.type-check.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test-services.result }}
+          BUILD_RESULT: ${{ needs.build-services.result }}
+        run: |
+          FAILED=false
+          if [[ "$TYPE_CHECK_RESULT" != "success" ]]; then
+            echo "FAILED: type-check => $TYPE_CHECK_RESULT"
+            FAILED=true
+          fi
+          if [[ "$LINT_RESULT" != "success" ]]; then
+            echo "FAILED: lint => $LINT_RESULT"
+            FAILED=true
+          fi
+          if [[ "$TEST_RESULT" != "success" ]]; then
+            echo "FAILED: test-services => $TEST_RESULT"
+            FAILED=true
+          fi
+          if [[ "$BUILD_RESULT" != "success" ]]; then
+            echo "FAILED: build-services => $BUILD_RESULT"
+            FAILED=true
+          fi
+          if [[ "$FAILED" == "true" ]]; then
+            exit 1
+          fi
+          echo "All CI checks passed!"

@@ -1,0 +1,260 @@
+# ============================================================
+# SLO Definitions — EcomPilot PL
+# ============================================================
+# Format: custom (not OpenSLO — kept minimal for clarity)
+# Owner: Platform SRE
+# Review cycle: quarterly or after any SLO breach
+# Error budget policy: freeze non-critical features at < 10% budget remaining
+# ============================================================
+
+version: "1.0"
+service: ecompilot
+last_reviewed: "2026-03-21"
+next_review: "2026-06-21"
+owner: platform-sre
+contact: sre@ecompilot.pl
+
+# ============================================================
+# SLOs
+# ============================================================
+slos:
+
+  # ----------------------------------------------------------
+  # SLO-1: API Availability
+  # ----------------------------------------------------------
+  - id: slo-001
+    name: API Availability
+    description: >
+      The proportion of successful HTTP requests (non-5xx) served by the
+      EcomPilot API across all 16 microservices over a 30-day rolling window.
+    category: availability
+
+    target:
+      percentage: 99.9
+      error_rate_budget: 0.001        # 0.1% of requests may fail
+
+    error_budget:
+      window: 30d
+      allowed_downtime_minutes: 43.2  # 99.9% of 43,200 min = 43.2 min
+      monthly_allowed_failures_ppm: 1000
+
+    sli:
+      type: request_availability
+      numerator: >
+        sum(rate(http_server_request_duration_seconds_count{http_response_status_code!~"5.."}[30d]))
+      denominator: >
+        sum(rate(http_server_request_duration_seconds_count[30d]))
+      unit: ratio
+
+    burn_rate_alerts:
+      - window: 1h
+        burn_rate: 14.4   # Exhausts budget in 2 hours — page immediately
+        severity: critical
+      - window: 6h
+        burn_rate: 6.0    # Exhausts budget in ~5 days — investigate urgently
+        severity: warning
+
+    error_budget_policy:
+      freeze_features_below_pct: 10   # < 10% budget remaining = feature freeze
+      postmortem_required_below_pct: 50
+      stakeholder_notification_below_pct: 25
+
+  # ----------------------------------------------------------
+  # SLO-2: API Latency p95
+  # ----------------------------------------------------------
+  - id: slo-002
+    name: API Latency p95
+    description: >
+      95th percentile response time for all API requests must stay below 500 ms
+      measured over any 5-minute window. Excludes AI inference endpoints
+      which have their own SLO (see slo-003).
+    category: latency
+
+    target:
+      threshold_ms: 500
+      percentile: 95
+      percentage: 99.9    # 99.9% of 5-min windows must meet the threshold
+
+    sli:
+      type: request_latency
+      query: >
+        histogram_quantile(0.95,
+          sum by (le) (
+            rate(http_server_request_duration_seconds_bucket{
+              job="ecompilot-services",
+              service!="ai-service"
+            }[5m])
+          )
+        ) <= 0.5
+      unit: seconds
+
+    burn_rate_alerts:
+      - window: 30m
+        consecutive_violations: 3
+        severity: warning
+      - window: 2h
+        consecutive_violations: 5
+        severity: critical
+
+    error_budget_policy:
+      freeze_features_below_pct: 10
+      postmortem_required_below_pct: 50
+
+  # ----------------------------------------------------------
+  # SLO-3: AI Response Latency p95
+  # ----------------------------------------------------------
+  - id: slo-003
+    name: AI Response Latency p95
+    description: >
+      95th percentile end-to-end response time for AI inference requests
+      (including RAG retrieval, LLM generation, and response streaming)
+      must stay below 3000 ms.
+    category: latency
+
+    target:
+      threshold_ms: 3000
+      percentile: 95
+      percentage: 99.0    # Slightly relaxed — AI is inherently variable
+
+    sli:
+      type: request_latency
+      query: >
+        histogram_quantile(0.95,
+          sum by (le) (
+            rate(http_server_request_duration_seconds_bucket{service="ai-service"}[5m])
+          )
+        ) <= 3.0
+      unit: seconds
+
+    burn_rate_alerts:
+      - window: 15m
+        consecutive_violations: 2
+        severity: warning
+      - window: 1h
+        consecutive_violations: 4
+        severity: critical
+
+    error_budget_policy:
+      freeze_features_below_pct: 5
+      postmortem_required_below_pct: 50
+      mitigation: >
+        When budget < 25%, enable request queuing and increase cache TTL.
+        When budget < 10%, disable RAG for non-premium users.
+
+  # ----------------------------------------------------------
+  # SLO-4: Error Rate
+  # ----------------------------------------------------------
+  - id: slo-004
+    name: Global Error Rate
+    description: >
+      The total proportion of HTTP 5xx responses across all services must
+      remain below 0.1% of all requests over a 5-minute window.
+    category: availability
+
+    target:
+      threshold_pct: 0.1
+      percentage: 99.9
+
+    sli:
+      type: error_rate
+      query: >
+        (
+          sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m]))
+          /
+          sum(rate(http_server_request_duration_seconds_count[5m]))
+        ) < 0.001
+      unit: ratio
+
+    burn_rate_alerts:
+      - window: 5m
+        threshold_pct: 1.0
+        severity: critical
+      - window: 30m
+        threshold_pct: 0.5
+        severity: warning
+
+    error_budget_policy:
+      freeze_features_below_pct: 10
+      postmortem_required_below_pct: 25
+
+  # ----------------------------------------------------------
+  # SLO-5: Auth Service Latency p99
+  # ----------------------------------------------------------
+  - id: slo-005
+    name: Auth Service Latency p99
+    description: >
+      99th percentile response time for the authentication service (login,
+      token validation, session refresh) must stay below 200 ms.
+      Auth is in the critical path for every API request.
+    category: latency
+
+    target:
+      threshold_ms: 200
+      percentile: 99
+      percentage: 99.9
+
+    sli:
+      type: request_latency
+      query: >
+        histogram_quantile(0.99,
+          sum by (le) (
+            rate(http_server_request_duration_seconds_bucket{service="auth-service"}[5m])
+          )
+        ) <= 0.2
+      unit: seconds
+
+    burn_rate_alerts:
+      - window: 5m
+        consecutive_violations: 3
+        severity: critical     # Auth latency is user-visible immediately
+      - window: 15m
+        consecutive_violations: 2
+        severity: warning
+
+    error_budget_policy:
+      freeze_features_below_pct: 5
+      postmortem_required_below_pct: 25
+      priority: highest
+      note: >
+        Auth SLO breaches trigger incident severity P1 regardless of user impact
+        because auth is the gateway to all features.
+
+# ============================================================
+# Reporting configuration
+# ============================================================
+reporting:
+  weekly_digest: true
+  monthly_report: true
+  recipients:
+    - engineering@ecompilot.pl
+    - product@ecompilot.pl
+  slack_channel: "#slo-reports"
+
+# ============================================================
+# Error budget policy — global defaults
+# ============================================================
+error_budget_policy:
+  default_window: 30d
+
+  actions:
+    budget_above_50pct:
+      - "Normal feature development velocity"
+      - "Optional reliability improvements welcomed"
+
+    budget_25_to_50pct:
+      - "Notify engineering leads"
+      - "Prioritise at least one reliability improvement per sprint"
+      - "Review postmortems for patterns"
+
+    budget_10_to_25pct:
+      - "Engineering lead reviews all feature releases"
+      - "Mandatory reliability sprint tasks in next sprint"
+      - "Post weekly update to #engineering-alerts"
+      - "Freeze non-critical deployments on Fridays"
+
+    budget_below_10pct:
+      - "Feature freeze — only reliability and bug-fix PRs merged"
+      - "On-call doubled during business hours"
+      - "Daily SLO review with VP Engineering"
+      - "Customer communications prepared"
+      - "Incident commander assigned until budget recovers above 25%"

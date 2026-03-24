@@ -1,0 +1,164 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ecompilot
+
+# ── Base resources ─────────────────────────────────────────────────────────
+resources:
+  - ../../base
+  - ../../services/auth-service
+  - ../../services/analytics-service
+  - ../../services/suppliers-service
+  - ../../services/calc-service
+  - ../../services/ai-service
+  - ../../services/billing-service
+  - ../../services/content-service
+  - ../../services/legal-service
+  - ../../services/academy-service
+  - ../../services/community-service
+  - ../../services/notification-service
+  - ../../services/api-gateway
+  - ../../services/marketplace-hub
+  - ../../services/logistics-engine
+  - ../../services/ksef-service
+  - ../../services/payment-reconciliation
+  - ../../shared
+  - ../../ingress
+  - ../../network-policies
+
+# ── Namespace label override ───────────────────────────────────────────────
+commonLabels:
+  environment: staging
+
+# ── Common annotations ─────────────────────────────────────────────────────
+commonAnnotations:
+  app.kubernetes.io/environment: staging
+
+# ── Image tag override ─────────────────────────────────────────────────────
+images:
+  - name: ghcr.io/ecompilot/auth-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/analytics-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/suppliers-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/calc-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/ai-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/billing-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/content-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/legal-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/academy-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/community-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/notification-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/api-gateway
+    newTag: staging
+  - name: ghcr.io/ecompilot/marketplace-hub
+    newTag: staging
+  - name: ghcr.io/ecompilot/logistics-engine
+    newTag: staging
+  - name: ghcr.io/ecompilot/ksef-service
+    newTag: staging
+  - name: ghcr.io/ecompilot/payment-reconciliation
+    newTag: staging
+
+# ── Strategic merge patches — 1 replica + lower resources for staging ──────
+patches:
+  # Reduce replicas to 1 for all Deployments in staging
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/part-of=ecompilot"
+
+  # Lower CPU/memory limits for staging cost savings
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "50m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "64Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "250m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "256Mi"
+    target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/part-of=ecompilot"
+
+  # HPA: staging min=1, max=3
+  - patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+    target:
+      kind: HorizontalPodAutoscaler
+      labelSelector: "app.kubernetes.io/part-of=ecompilot"
+
+  # Use staging cert-manager issuer
+  - patch: |-
+      - op: replace
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: letsencrypt-staging
+    target:
+      kind: Ingress
+      name: ecompilot-ingress
+
+  # Staging ingress host
+  - patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: api-staging.ecompilot.com
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: api-staging.ecompilot.com
+      - op: replace
+        path: /spec/tls/0/secretName
+        value: ecompilot-api-staging-tls
+    target:
+      kind: Ingress
+      name: ecompilot-ingress
+
+  # Postgres: smaller PVC for staging
+  - patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: "10Gi"
+    target:
+      kind: StatefulSet
+      name: postgres
+
+  # NATS: single node for staging
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: StatefulSet
+      name: nats
+
+  # Namespace label for staging environment
+  - patch: |-
+      - op: replace
+        path: /metadata/labels/environment
+        value: staging
+      - op: remove
+        path: /metadata/labels/pod-security.kubernetes.io~1enforce
+    target:
+      kind: Namespace
+      name: ecompilot
