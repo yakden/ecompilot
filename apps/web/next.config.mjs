@@ -23,7 +23,14 @@ const nextConfig = {
   },
   experimental: {
     optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
-    serverComponentsExternalPackages: ['@opentelemetry/api'],
+  },
+  webpack: (config) => {
+    // Resolve @opentelemetry/api to Next.js built-in version to prevent clientModules crash
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@opentelemetry/api': 'next/dist/compiled/@opentelemetry/api',
+    };
+    return config;
   },
   async rewrites() {
     return [
