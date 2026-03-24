@@ -156,3 +156,32 @@ export const usageCounters = pgTable(
 
 export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type NewUsageCounterRow = typeof usageCounters.$inferInsert;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// inv_products (read-only reference — owned by inventory-service)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const invProducts = pgTable("inv_products", {
+  id: uuid("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  sku: text("sku").notNull(),
+  category: text("category").notNull(),
+  purchasePrice: integer("purchase_price").notNull(),
+  sellingPrice: integer("selling_price").notNull(),
+  currentStock: integer("current_stock").notNull(),
+  totalSold: integer("total_sold").default(0),
+  totalRevenue: integer("total_revenue").default(0),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// inv_snapshots (read-only reference — owned by inventory-service)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const invSnapshots = pgTable("inv_snapshots", {
+  id: uuid("id").primaryKey(),
+  productId: uuid("product_id").notNull(),
+  date: date("date").notNull(),
+  soldCount: integer("sold_count").default(0),
+  revenue: integer("revenue").default(0),
+});

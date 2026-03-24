@@ -80,6 +80,53 @@ export interface NicheStatusResponse {
   error?: string;
 }
 
+// ─── Dashboard types ──────────────────────────────────────────────────────────
+
+export interface DashboardData {
+  kpis: {
+    totalRevenue: number;
+    totalSold: number;
+    totalProducts: number;
+    avgMargin: number;
+  };
+  revenueLast30: Array<{
+    date: string;
+    revenue: number;
+    sold: number;
+  }>;
+  topProducts: Array<{
+    name: string;
+    sku: string;
+    category: string;
+    revenue: number;
+    sold: number;
+    margin: number;
+  }>;
+  categoryBreakdown: Array<{
+    category: string;
+    revenue: number;
+    products: number;
+    sold: number;
+  }>;
+  recentAnalyses: Array<{
+    keyword: string;
+    score: number | null;
+    recommendation: string | null;
+    analyzedAt: string;
+  }>;
+}
+
+export interface SeasonalData {
+  currentMonth: number;
+  calendar: Array<{
+    month: number;
+    name: string;
+    events: string[];
+    demandIndex: number;
+  }>;
+  insight: string;
+}
+
 interface TrendingResponse {
   items: Array<{
     keyword: string;
@@ -99,7 +146,9 @@ interface SeasonalResponse {
 }
 
 function buildAuthHeaders(userId: string | undefined, plan: string | undefined): Record<string, string> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'x-internal-service': 'true',
+  };
   if (userId) headers['x-user-id'] = userId;
   if (plan) headers['x-user-plan'] = plan;
   return headers;
@@ -245,7 +294,7 @@ export function useTrending() {
 export function useSeasonal() {
   const { user, accessToken } = useAuthStore();
 
-  return useQuery<SeasonalResponse, ApiClientError>({
+  return useQuery<SeasonalData, ApiClientError>({
     queryKey: ['analytics-seasonal'],
     queryFn: async () => {
       const headers: Record<string, string> = {
@@ -262,8 +311,34 @@ export function useSeasonal() {
       }
 
       const json = await response.json();
-      return (json.data ?? json) as SeasonalResponse;
+      return (json.data ?? json) as SeasonalData;
     },
     staleTime: 60 * 60 * 1000,
+  });
+}
+
+export function useDashboard() {
+  const { user, accessToken } = useAuthStore();
+
+  return useQuery<DashboardData, ApiClientError>({
+    queryKey: ['analytics-dashboard'],
+    queryFn: async () => {
+      const headers: Record<string, string> = {
+        ...buildAuthHeaders(user?.id, user?.plan),
+      };
+      if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+
+      const response = await fetch('/api/v1/analytics/dashboard', { headers });
+
+      if (!response.ok) {
+        const json = await response.json().catch(() => ({}));
+        const errMsg = json.error?.message ?? json.message ?? `HTTP ${response.status}`;
+        throw new ApiClientError(response.status, errMsg);
+      }
+
+      const json = await response.json();
+      return (json.data ?? json) as DashboardData;
+    },
+    staleTime: 5 * 60 * 1000,
   });
 }

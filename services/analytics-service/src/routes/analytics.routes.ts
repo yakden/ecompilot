@@ -13,7 +13,7 @@ import type { Plan } from "@ecompilot/shared-types";
 import { requireAuth } from "@ecompilot/shared-auth";
 import { env } from "../config/env.js";
 import { getDb } from "../db/postgres.js";
-import { nicheAnalyses, competitorSnapshots, usageCounters } from "../db/schema.js";
+import { nicheAnalyses, competitorSnapshots, usageCounters, invProducts, invSnapshots } from "../db/schema.js";
 import { queryTrendingNiches } from "../db/clickhouse.js";
 import type { NicheAnalysisJobData, NicheAnalysisJobResult } from "../workers/niche-analysis.worker.js";
 import { getTradeData } from "../services/comtrade.service.js";
@@ -549,6 +549,153 @@ export async function analyticsRoutes(fastify: FastifyInstance): Promise<void> {
           return sendError(reply, err.statusCode, err.code, err.message);
         }
         logger.error({ err }, "Unexpected error in GET /competitors/:allegroUserId");
+        return sendError(reply, 500, "INTERNAL_ERROR", "Internal server error");
+      }
+    },
+  );
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // GET /api/v1/analytics/dashboard
+  // Aggregated dashboard data — KPIs, revenue trend, top products, categories
+  // ───────────────────────────────────────────────────────────────────────────
+
+  fastify.get(
+    "/api/v1/analytics/dashboard",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const user = extractUser(request);
+
+        const [kpiRows, revenueLast30, topProducts, categoryBreakdown, recentAnalyses] =
+          await Promise.all([
+            // KPIs
+            db
+              .select({
+                totalRevenue: sql<string>`COALESCE(SUM(${invProducts.totalRevenue}), 0)`,
+                totalSold: sql<string>`COALESCE(SUM(${invProducts.totalSold}), 0)`,
+                totalProducts: sql<string>`COUNT(*)`,
+                avgMargin: sql<string>`ROUND(AVG(
+                  CASE WHEN ${invProducts.sellingPrice} > 0
+                  THEN ((${invProducts.sellingPrice} - ${invProducts.purchasePrice})::numeric / ${invProducts.sellingPrice}::numeric) * 100
+                  ELSE 0 END
+                ), 1)`,
+              })
+              .from(invProducts)
+              .where(eq(invProducts.userId, user.userId)),
+
+            // Revenue last 30 days from snapshots
+            db
+              .select({
+                date: invSnapshots.date,
+                revenue: sql<string>`SUM(${invSnapshots.revenue})`,
+                sold: sql<string>`SUM(${invSnapshots.soldCount})`,
+              })
+              .from(invSnapshots)
+              .innerJoin(invProducts, eq(invSnapshots.productId, invProducts.id))
+              .where(
+                and(
+                  eq(invProducts.userId, user.userId),
+                  sql`${invSnapshots.date}::date >= CURRENT_DATE - INTERVAL '30 days'`,
+                ),
+              )
+              .groupBy(invSnapshots.date)
+              .orderBy(invSnapshots.date),
+
+            // Top 5 products by revenue
+            db
+              .select({
+                name: invProducts.name,
+                sku: invProducts.sku,
+                category: invProducts.category,
+                revenue: invProducts.totalRevenue,
+                sold: invProducts.totalSold,
+                purchasePrice: invProducts.purchasePrice,
+                sellingPrice: invProducts.sellingPrice,
+              })
+              .from(invProducts)
+              .where(eq(invProducts.userId, user.userId))
+              .orderBy(desc(invProducts.totalRevenue))
+              .limit(5),
+
+            // Category breakdown
+            db
+              .select({
+                category: invProducts.category,
+                revenue: sql<string>`SUM(${invProducts.totalRevenue})`,
+                products: sql<string>`COUNT(*)`,
+                sold: sql<string>`SUM(${invProducts.totalSold})`,
+              })
+              .from(invProducts)
+              .where(eq(invProducts.userId, user.userId))
+              .groupBy(invProducts.category),
+
+            // Recent completed niche analyses
+            db
+              .select({
+                keyword: nicheAnalyses.keyword,
+                score: nicheAnalyses.score,
+                result: nicheAnalyses.result,
+                createdAt: nicheAnalyses.createdAt,
+              })
+              .from(nicheAnalyses)
+              .where(
+                and(
+                  eq(nicheAnalyses.userId, user.userId),
+                  eq(nicheAnalyses.status, "completed"),
+                ),
+              )
+              .orderBy(desc(nicheAnalyses.createdAt))
+              .limit(5),
+          ]);
+
+        const kpi = kpiRows[0];
+
+        return reply.send({
+          success: true,
+          data: {
+            kpis: {
+              totalRevenue: Number(kpi?.totalRevenue ?? 0),
+              totalSold: Number(kpi?.totalSold ?? 0),
+              totalProducts: Number(kpi?.totalProducts ?? 0),
+              avgMargin: Number(kpi?.avgMargin ?? 0),
+            },
+            revenueLast30: revenueLast30.map((r) => ({
+              date: r.date,
+              revenue: Number(r.revenue),
+              sold: Number(r.sold),
+            })),
+            topProducts: topProducts.map((p) => ({
+              name: p.name,
+              sku: p.sku,
+              category: p.category,
+              revenue: p.revenue ?? 0,
+              sold: p.sold ?? 0,
+              margin:
+                p.sellingPrice > 0
+                  ? Math.round(
+                      ((p.sellingPrice - p.purchasePrice) / p.sellingPrice) * 1000,
+                    ) / 10
+                  : 0,
+            })),
+            categoryBreakdown: categoryBreakdown.map((c) => ({
+              category: c.category,
+              revenue: Number(c.revenue),
+              products: Number(c.products),
+              sold: Number(c.sold),
+            })),
+            recentAnalyses: recentAnalyses.map((a) => ({
+              keyword: a.keyword,
+              score: a.score !== null ? Number(a.score) : null,
+              recommendation:
+                (a.result as Record<string, unknown> | null)?.recommendation ?? null,
+              analyzedAt: a.createdAt.toISOString(),
+            })),
+          },
+        });
+      } catch (err) {
+        if (isHttpError(err)) {
+          return sendError(reply, err.statusCode, err.code, err.message);
+        }
+        logger.error({ err }, "Unexpected error in GET /dashboard");
         return sendError(reply, 500, "INTERNAL_ERROR", "Internal server error");
       }
     },

@@ -17,7 +17,7 @@ import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import type { FastifyCorsOptions } from "@fastify/cors";
 import type { RateLimitPluginOptions } from "@fastify/rate-limit";
-import { createAuthPlugin } from "@ecompilot/shared-auth";
+import { createAuthMiddleware } from "@ecompilot/shared-auth";
 import { analyticsRoutes } from "./routes/analytics.routes.js";
 import { createNicheAnalysisWorker, closeWorkerNats } from "./workers/niche-analysis.worker.js";
 import { getPool, closePool, pingPostgres } from "./db/postgres.js";
@@ -144,14 +144,15 @@ async function bootstrap(): Promise<void> {
     };
   });
 
-  // ── 7. Auth middleware ───────────────────────────────────────────────────
+  // ── 7. Auth middleware (registered directly to avoid Fastify encapsulation) ─
 
-  await app.register(createAuthPlugin({
+  app.decorateRequest("authUser", null);
+  app.addHook("onRequest", createAuthMiddleware({
     jwtPublicKey: process.env["JWT_PUBLIC_KEY"],
     jwtSecret: process.env["JWT_SECRET"],
     allowInternalHeaders: true,
     internalServiceSecret: process.env["INTERNAL_SERVICE_SECRET"] ?? "true",
-  }) as unknown as Parameters<typeof app.register>[0]);
+  }));
 
   // ── 8. Business routes ────────────────────────────────────────────────────
 
