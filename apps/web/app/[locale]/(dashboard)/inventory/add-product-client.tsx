@@ -121,9 +121,9 @@ function ProductFoundCard({ result, t, tNutrients }: ProductFoundCardProps) {
           </div>
         )}
         <div className="space-y-1 min-w-0">
-          {(result.name || result.title) && (
+          {result.name && (
             <p className="text-sm font-semibold text-slate-900 dark:text-white line-clamp-2">
-              {result.name ?? result.title}
+              {result.name}
             </p>
           )}
           {result.brand && (
