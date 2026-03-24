@@ -209,7 +209,7 @@ export function useDeliveryCalc() {
       const json = await response.json();
       const raw = (json.data ?? json) as Record<string, unknown>;
       return {
-        sea: { costUsd: parseFloat(String(raw.shippingCost ?? 0)) / 4.2, costPln: parseFloat(String(raw.shippingCost ?? 0)), days: String(raw.estimatedDays ?? '40-60') },
+        sea: { costUsd: parseFloat(String(raw.shippingCost ?? 0)) / 4.2, costPln: parseFloat(String(raw.shippingCost ?? 0)), days: Number(raw.estimatedDays ?? 45) },
         air: null,
         express: null,
         customsDuty: parseFloat(String(raw.customsDuty ?? 0)),
