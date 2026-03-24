@@ -53,7 +53,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Copy built app
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder /app/apps/web/public ./apps/web/public
 
 RUN addgroup -S app && adduser -S app -G app
 USER app
