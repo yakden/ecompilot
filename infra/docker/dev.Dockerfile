@@ -11,11 +11,13 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc* ./
 COPY turbo.json tsconfig.base.json ./
 
-# Copy all package.json files for workspace resolution
+# Copy ALL package.json files for workspace resolution
 COPY packages/shared-types/package.json packages/shared-types/
 COPY packages/event-contracts/package.json packages/event-contracts/
 COPY packages/shared-observability/package.json packages/shared-observability/
 COPY packages/shared-security/package.json packages/shared-security/
+COPY packages/shared-auth/package.json packages/shared-auth/
+COPY packages/shared-ui/package.json packages/shared-ui/
 COPY packages/api-client/package.json packages/api-client/
 COPY services/${SERVICE_NAME}/package.json services/${SERVICE_NAME}/
 
