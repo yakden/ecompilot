@@ -24,13 +24,12 @@ COPY services/${SERVICE_NAME}/package.json services/${SERVICE_NAME}/
 # Install dependencies
 RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockfile
 
-# Copy shared packages source and build them
+# Copy shared packages source and build them all
 COPY packages/ packages/
-RUN cd packages/shared-types && npx tsc --outDir dist 2>&1 || true && \
-    cd /app/packages/event-contracts && npx tsc --outDir dist 2>&1 || true && \
-    cd /app/packages/shared-observability && npx tsc --outDir dist 2>&1 || true && \
-    cd /app/packages/shared-security && npx tsc --outDir dist 2>&1 || true && \
-    echo "Packages built"
+RUN for pkg in shared-types event-contracts shared-observability shared-security shared-auth api-client; do \
+      echo "Building $pkg..." && \
+      cd /app/packages/$pkg && (npx tsc --project tsconfig.json 2>&1 || true); \
+    done && echo "All packages built"
 
 # Copy service source
 COPY services/${SERVICE_NAME}/ services/${SERVICE_NAME}/
