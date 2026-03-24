@@ -197,10 +197,17 @@ async function processNicheAnalysis(
   const scraperResult = await scrapeAllegro(keyword);
   await job.updateProgress(50);
 
-  logger.info(
-    { jobId: job.id, keyword, listingsFound: scraperResult.listings.length },
-    "Scraping complete",
-  );
+  if (scraperResult.listings.length === 0) {
+    logger.warn(
+      { jobId: job.id, keyword },
+      "Scraping returned no listings — Playwright may not be installed or keyword has no results",
+    );
+  } else {
+    logger.info(
+      { jobId: job.id, keyword, listingsFound: scraperResult.listings.length },
+      "Scraping complete",
+    );
+  }
 
   // 90% — scoring complete
   const result = computeNicheAnalysis({

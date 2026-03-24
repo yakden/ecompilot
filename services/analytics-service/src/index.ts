@@ -22,7 +22,7 @@ import { analyticsRoutes } from "./routes/analytics.routes.js";
 import { createNicheAnalysisWorker, closeWorkerNats } from "./workers/niche-analysis.worker.js";
 import { getPool, closePool, pingPostgres } from "./db/postgres.js";
 import { initClickHouseSchema, closeClickHouseClient, pingClickHouse } from "./db/clickhouse.js";
-import { closeBrowser } from "./scrapers/allegro.scraper.js";
+import { closeBrowser, isPlaywrightAvailable } from "./scrapers/allegro.scraper.js";
 import { closeComtradeRedis } from "./services/comtrade.service.js";
 import { closeEurostatRedis } from "./services/eurostat.service.js";
 
@@ -42,7 +42,11 @@ async function bootstrap(): Promise<void> {
   logger.info("Initialising ClickHouse schema...");
   await initClickHouseSchema();
 
-  // ── 2. Start BullMQ worker ───────────────────────────────────────────────
+  // ── 2. Check Playwright availability (non-blocking) ────────────────────
+
+  await isPlaywrightAvailable();
+
+  // ── 3. Start BullMQ worker ───────────────────────────────────────────────
 
   const nicheWorker = createNicheAnalysisWorker();
 

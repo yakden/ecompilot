@@ -11,8 +11,44 @@ import { createLogger } from "@ecompilot/shared-observability";
 const logger = createLogger({ service: "analytics-service" });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Playwright availability check
+// ─────────────────────────────────────────────────────────────────────────────
+
+let _playwrightAvailable: boolean | null = null;
+
+/**
+ * Check whether Playwright browser binaries are installed.
+ * Caches the result after first call.
+ */
+export async function isPlaywrightAvailable(): Promise<boolean> {
+  if (_playwrightAvailable !== null) return _playwrightAvailable;
+
+  try {
+    const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });
+    await browser.close();
+    _playwrightAvailable = true;
+    logger.info("Playwright browser binaries available — scraping enabled");
+  } catch {
+    _playwrightAvailable = false;
+    logger.warn(
+      "Playwright browser binaries not installed — scraping disabled. " +
+      "Install with: npx playwright install --with-deps chromium",
+    );
+  }
+
+  return _playwrightAvailable;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
+
+export class PlaywrightUnavailableError extends Error {
+  constructor() {
+    super("Playwright browser binaries not installed");
+    this.name = "PlaywrightUnavailableError";
+  }
+}
 
 export interface AllegroListing {
   readonly id: string;
@@ -91,6 +127,10 @@ const RETRY_OPTIONS: RetryOptions = {
 let _browser: Browser | null = null;
 
 async function getBrowser(): Promise<Browser> {
+  if (!(await isPlaywrightAvailable())) {
+    throw new PlaywrightUnavailableError();
+  }
+
   if (_browser === null || !_browser.isConnected()) {
     _browser = await chromium.launch({
       headless: true,
@@ -264,6 +304,20 @@ async function scrapeKeywordPage(keyword: string): Promise<AllegroListing[]> {
  * Uses PQueue for concurrency control and p-retry for resilience.
  */
 export async function scrapeAllegro(keyword: string): Promise<ScraperResult> {
+  // Fast-path: skip queueing entirely if Playwright is not available
+  if (!(await isPlaywrightAvailable())) {
+    logger.warn(
+      { keyword },
+      "Skipping scrape — Playwright browsers not installed",
+    );
+    return {
+      keyword,
+      listings: [],
+      scrapedAt: new Date().toISOString(),
+      totalFound: 0,
+    };
+  }
+
   const listings = await queue.add(
     () =>
       pRetry(
