@@ -35,8 +35,8 @@ RUN chown -R app:app /app
 USER app
 
 WORKDIR /app/apps/web
-EXPOSE 3000
-ENV PORT=3000
+EXPOSE 4000
+ENV PORT=4000
 ENV HOSTNAME="0.0.0.0"
 
 # Use tsx to run next dev (avoids production clientModules bug)
