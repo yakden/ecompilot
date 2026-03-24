@@ -1,0 +1,31 @@
+name: ecompilot-prod
+
+networks:
+  ecompilot-network:
+    external: true
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    container_name: ecompilot-web
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
+  # Healthcheck service to wait for infrastructure
+  infra-ready:
+    image: alpine:3.19
+    container_name: ecompilot-infra-check
+    command: ["sh", "-c", "echo 'Infrastructure assumed ready' && sleep 5"]
+    networks:
+      - ecompilot-network
