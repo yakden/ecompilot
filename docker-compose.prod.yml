@@ -17,6 +17,24 @@ services:
     environment:
       NODE_ENV: development
       PORT: "3000"
+      AUTH_SERVICE_HOST: ecompilot-auth
+      ANALYTICS_SERVICE_HOST: ecompilot-analytics
+      CALC_SERVICE_HOST: ecompilot-calc
+      AI_SERVICE_HOST: ecompilot-ai
+      SUPPLIERS_SERVICE_HOST: ecompilot-suppliers
+      SUPPLIERS_SERVICE_URL: http://ecompilot-suppliers:3005
+      BILLING_SERVICE_HOST: ecompilot-billing
+      INVENTORY_SERVICE_HOST: ecompilot-inventory
+      CONTENT_SERVICE_HOST: ecompilot-content
+      LEGAL_SERVICE_HOST: ecompilot-legal
+      ACADEMY_SERVICE_HOST: ecompilot-academy
+      COMMUNITY_SERVICE_HOST: ecompilot-community
+      NOTIFICATION_SERVICE_HOST: ecompilot-notification
+      MARKETPLACE_HUB_HOST: ecompilot-marketplace
+      LOGISTICS_ENGINE_HOST: ecompilot-logistics
+      KSEF_SERVICE_HOST: ecompilot-ksef
+      PAYMENT_RECONCILIATION_HOST: ecompilot-payments
+      API_GATEWAY_HOST: ecompilot-gateway
     ports:
       - "4000:3000"
     networks:

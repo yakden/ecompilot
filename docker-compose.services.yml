@@ -350,6 +350,29 @@ services:
     depends_on:
       - infra-ready
 
+  inventory-service:
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        SERVICE_NAME: inventory-service
+        SERVICE_PORT: "3017"
+    container_name: ecompilot-inventory
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "3017"
+      SERVICE_NAME: inventory-service
+    ports:
+      - "3017:3017"
+    volumes:
+      - ./services/inventory-service/src:/app/services/inventory-service/src
+      - ./packages:/app/packages
+    networks:
+      - ecompilot-network
+    depends_on:
+      - infra-ready
+
   api-gateway:
     build:
       context: .

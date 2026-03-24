@@ -1,0 +1,70 @@
+# Production override: bind to 127.0.0.1, remove dev volumes, remap auth port
+services:
+  auth-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:23001:3001"
+  analytics-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3002:3002"
+  calc-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3003:3003"
+  ai-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3004:3004"
+  suppliers-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3005:3005"
+  billing-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3006:3006"
+  content-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3007:3007"
+  legal-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3008:3008"
+  academy-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3009:3009"
+  community-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3010:3010"
+  notification-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3011:3011"
+  marketplace-hub:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3012:3012"
+  logistics-engine:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3013:3013"
+  ksef-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3014:3014"
+  payment-reconciliation:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3015:3015"
+  inventory-service:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3017:3017"
+  api-gateway:
+    volumes: !override []
+    ports: !override
+      - "127.0.0.1:3016:3016"

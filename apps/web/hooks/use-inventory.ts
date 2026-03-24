@@ -182,7 +182,9 @@ function buildAuthHeaders(
   plan: string | undefined,
   accessToken: string | null,
 ): Record<string, string> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'x-internal-service': 'true',
+  };
   if (userId) headers['x-user-id'] = userId;
   if (plan) headers['x-user-plan'] = plan;
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;

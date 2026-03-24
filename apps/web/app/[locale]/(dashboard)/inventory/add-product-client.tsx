@@ -277,9 +277,9 @@ export function AddProductClient({ open, onClose }: AddProductClientProps) {
       const result = lookup.data;
       setForm((prev) => ({
         ...prev,
-        name: result.name ?? prev.name,
+        name: result.name || prev.name,
         sku: autoSku(submittedBarcode),
-        category: result.category ?? prev.category,
+        category: result.category || prev.category,
       }));
       setPrefilled(true);
     }

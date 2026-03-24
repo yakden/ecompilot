@@ -21,7 +21,7 @@ import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 
 import { env } from "./config/env.js";
-import { createAuthPlugin } from "@ecompilot/shared-auth";
+import { createAuthMiddleware } from "@ecompilot/shared-auth";
 import { inventoryRoutes } from "./routes/inventory.routes.js";
 import { closeDb, getPool } from "./db/client.js";
 
@@ -130,12 +130,13 @@ async function bootstrap(): Promise<void> {
   });
 
   // ── Auth middleware ──────────────────────────────────────────────────────
-  await app.register(createAuthPlugin({
+  app.decorateRequest("authUser", null);
+  app.addHook("onRequest", createAuthMiddleware({
     jwtPublicKey: process.env["JWT_PUBLIC_KEY"],
     jwtSecret: process.env["JWT_SECRET"],
     allowInternalHeaders: true,
     internalServiceSecret: process.env["INTERNAL_SERVICE_SECRET"] ?? "true",
-  }) as unknown as Parameters<typeof app.register>[0]);
+  }));
 
   // ── Inventory routes ──────────────────────────────────────────────────────
   await app.register(inventoryRoutes);
