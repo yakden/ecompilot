@@ -40,24 +40,16 @@ RUN cd packages/shared-types && npx tsc 2>/dev/null; \
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN cd apps/web && npx next build
 
-# ── Production stage ──
-FROM node:20-alpine AS runner
-
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+# ── Production stage (full install, not standalone) ──
+FROM builder AS runner
 
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy built app
-COPY --from=builder /app/apps/web/.next/standalone ./
-COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-# Copy i18n messages and config (needed at runtime by next-intl)
-COPY --from=builder /app/apps/web/messages ./apps/web/messages
-COPY --from=builder /app/apps/web/i18n ./apps/web/i18n
-
 RUN addgroup -S app && adduser -S app -G app
+RUN chown -R app:app /app/apps/web/.next
 USER app
 
 EXPOSE 3000
@@ -65,4 +57,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "apps/web/server.js"]
+CMD ["npx", "--prefix", "apps/web", "next", "start"]
