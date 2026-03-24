@@ -126,8 +126,8 @@ function MarginCalculator() {
 
         {rates && (
           <div className="mb-4 flex gap-3 text-[11px] text-slate-500">
-            <span>VAT: {(rates as Record<string, unknown> as { vat?: { standard?: string } }).vat?.standard ?? '23'}%</span>
-            <span>ZUS min: {(rates as Record<string, unknown> as { zus2025?: { health?: { minimumPln?: string } } }).zus2025?.health?.minimumPln ?? '381.78'} PLN</span>
+            <span>VAT: {(rates as unknown as { vat?: { standard?: string } }).vat?.standard ?? '23'}%</span>
+            <span>ZUS min: {(rates as unknown as { zus2025?: { health?: { minimumPln?: string } } }).zus2025?.health?.minimumPln ?? '381.78'} PLN</span>
           </div>
         )}
 
