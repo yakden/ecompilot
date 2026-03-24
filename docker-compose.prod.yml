@@ -8,11 +8,19 @@ services:
     container_name: ecompilot-web
     restart: unless-stopped
     env_file: .env
-    network_mode: host
     environment:
       NODE_ENV: development
-      PORT: "4000"
-      HOSTNAME: "127.0.0.1"
+      PORT: "3000"
+    ports:
+      - "4000:3000"
+    networks:
+      - ecompilot-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  ecompilot-network:
+    external: true
 
   infra-ready:
     image: alpine:3.19
