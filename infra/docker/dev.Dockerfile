@@ -24,9 +24,10 @@ RUN pnpm install --frozen-lockfile 2>/dev/null || pnpm install --no-frozen-lockf
 
 # Copy shared packages source and build them
 COPY packages/ packages/
-RUN cd packages/shared-types && npx tsc 2>/dev/null; \
-    cd /app/packages/event-contracts && npx tsc 2>/dev/null; \
-    cd /app/packages/shared-observability && npx tsc 2>/dev/null; \
+RUN cd packages/shared-types && npx tsc --outDir dist 2>&1 || true && \
+    cd /app/packages/event-contracts && npx tsc --outDir dist 2>&1 || true && \
+    cd /app/packages/shared-observability && npx tsc --outDir dist 2>&1 || true && \
+    cd /app/packages/shared-security && npx tsc --outDir dist 2>&1 || true && \
     echo "Packages built"
 
 # Copy service source
