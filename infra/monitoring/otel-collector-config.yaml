@@ -121,7 +121,7 @@ processors:
 exporters:
   # Jaeger — traces
   otlp/jaeger:
-    endpoint: jaeger:14250
+    endpoint: ecompilot-jaeger:4317
     tls:
       insecure: true
     retry_on_failure:
@@ -144,28 +144,6 @@ exporters:
     resource_to_telemetry_conversion:
       enabled: true
 
-  # Loki — logs (push model via HTTP)
-  loki:
-    endpoint: http://loki:3100/loki/api/v1/push
-    tls:
-      insecure: true
-    default_labels_enabled:
-      exporter: false
-      job: true
-      instance: true
-      level: true
-    headers:
-      "X-Scope-OrgID": "ecompilot"
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 120s
-    sending_queue:
-      enabled: true
-      num_consumers: 5
-      queue_size: 2000
-
   # Compact debug output — useful during troubleshooting, not noisy
   debug:
     verbosity: basic
@@ -182,7 +160,6 @@ service:
       encoding: json
     metrics:
       level: detailed
-      address: 0.0.0.0:8888
 
   pipelines:
     # --- Traces ---
@@ -217,4 +194,4 @@ service:
         - resourcedetection
         - transform/logs
         - batch
-      exporters: [loki, debug]
+      exporters: [debug]
