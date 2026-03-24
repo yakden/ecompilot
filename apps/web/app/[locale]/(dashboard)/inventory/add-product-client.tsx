@@ -280,7 +280,6 @@ export function AddProductClient({ open, onClose }: AddProductClientProps) {
         name: result.name ?? prev.name,
         sku: autoSku(submittedBarcode),
         category: result.category ?? prev.category,
-        brand: result.brand ?? prev.brand,
       }));
       setPrefilled(true);
     }
