@@ -1,5 +1,11 @@
 name: ecompilot-prod
 
+networks:
+  ecompilot-network:
+    external: true
+  smpp-platform-net:
+    external: true
+
 services:
   web:
     build:
@@ -15,14 +21,13 @@ services:
       - "4000:3000"
     networks:
       - ecompilot-network
+      - smpp-platform-net
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-networks:
-  ecompilot-network:
-    external: true
 
   infra-ready:
     image: alpine:3.19
     container_name: ecompilot-infra-check
     command: ["sh", "-c", "echo 'Infrastructure ready' && sleep 5"]
+    networks:
+      - ecompilot-network
