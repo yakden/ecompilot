@@ -42,5 +42,5 @@ USER app
 
 EXPOSE ${SERVICE_PORT}
 
-# Run with tsx for TypeScript execution
-CMD ["npx", "tsx", "src/index.ts"]
+# Run with tsx using root tsconfig for path aliases
+CMD ["npx", "tsx", "--tsconfig", "/app/tsconfig.base.json", "src/index.ts"]
