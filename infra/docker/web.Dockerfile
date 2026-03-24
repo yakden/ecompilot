@@ -53,6 +53,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Copy built app
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+# Copy i18n messages and config (needed at runtime by next-intl)
+COPY --from=builder /app/apps/web/messages ./apps/web/messages
+COPY --from=builder /app/apps/web/i18n ./apps/web/i18n
 
 RUN addgroup -S app && adduser -S app -G app
 USER app
