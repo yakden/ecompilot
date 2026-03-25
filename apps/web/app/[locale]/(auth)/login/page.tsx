@@ -38,7 +38,7 @@ export default function LoginPage() {
 
       if (email === 'test@test.com' && password === 'password') {
         setUser({
-          id: '1',
+          id: '00000000-0000-0000-0000-000000000001',
           name: 'Test User',
           email,
           plan: 'pro',
@@ -59,7 +59,7 @@ export default function LoginPage() {
 
   function handleGoogleLogin() {
     setUser({
-      id: '2',
+      id: '00000000-0000-0000-0000-000000000002',
       name: 'Google User',
       email: 'google@example.com',
       plan: 'free',

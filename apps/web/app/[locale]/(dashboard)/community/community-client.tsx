@@ -27,7 +27,7 @@ interface Post {
 
 const POSTS: Post[] = [
   {
-    id: '1',
+    id: '00000000-0000-0000-0000-000000000001',
     title: 'How I went from 0 to 50k PLN monthly on Allegro in 8 months — my strategy',
     excerpt: 'After 8 months of trial and error, I finally cracked the code on Allegro. Here is my full breakdown including which niches work best in Q4...',
     author: 'Marek K.',

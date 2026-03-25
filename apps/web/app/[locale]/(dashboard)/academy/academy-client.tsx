@@ -27,7 +27,7 @@ interface Course {
 
 const COURSES: Course[] = [
   {
-    id: '1',
+    id: '00000000-0000-0000-0000-000000000001',
     title: 'Allegro Selling Mastery',
     description: 'Complete guide to selling on Allegro from zero to first 100 sales. Covers product research, listing optimization, and logistics.',
     instructor: 'Marek Kowalski',

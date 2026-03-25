@@ -63,7 +63,7 @@ export type KsefEnvDb = (typeof KSEF_ENV_VALUES)[number];
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const invoices = pgTable(
-  "invoices",
+  "ksef_invoices",
   {
     id: uuid("id").primaryKey().defaultRandom(),
 

@@ -931,7 +931,12 @@ export async function ksefRoutes(
     async (_request: FastifyRequest, reply: FastifyReply) => {
       const ksefStatus = await ksefClient.checkKsefStatus();
 
-      const approaching = await offlineService.getApproachingDeadlines();
+      let approaching: Awaited<ReturnType<typeof offlineService.getApproachingDeadlines>> = [];
+      try {
+        approaching = await offlineService.getApproachingDeadlines();
+      } catch (err) {
+        logger.error({ err }, "Failed to query approaching deadlines");
+      }
 
       return reply.code(200).send({
         success: true,

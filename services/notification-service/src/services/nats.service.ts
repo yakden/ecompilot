@@ -37,7 +37,11 @@ export async function connectNats(logger: Logger): Promise<void> {
   // Log status changes — reconnection is handled automatically
   void (async () => {
     for await (const status of _nc!.status()) {
-      logger.warn({ status: status.type, data: status.data }, "NATS status change");
+      if (status.type === "pingTimer") {
+        logger.debug({ status: status.type, data: status.data }, "NATS status change");
+      } else {
+        logger.warn({ status: status.type, data: status.data }, "NATS status change");
+      }
     }
   })();
 }

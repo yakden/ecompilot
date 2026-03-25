@@ -136,7 +136,7 @@ export default async function DashboardOverviewPage({
 
   const recentActivity: ActivityItem[] = [
     {
-      id: '1',
+      id: '00000000-0000-0000-0000-000000000001',
       type: 'order',
       title: 'New order #48291',
       subtitle: 'iPhone 15 Case — PLN 39.99',

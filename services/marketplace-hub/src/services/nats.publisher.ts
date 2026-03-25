@@ -121,10 +121,11 @@ export class NatsPublisher {
     // Monitor connection status
     void (async () => {
       for await (const status of this.nc!.status()) {
-        this.logger.warn(
-          { status: status.type, data: status.data },
-          "NATS status change",
-        );
+        if (status.type === "pingTimer") {
+          this.logger.debug({ status: status.type, data: status.data }, "NATS status change");
+        } else {
+          this.logger.warn({ status: status.type, data: status.data }, "NATS status change");
+        }
       }
     })();
   }

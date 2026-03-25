@@ -119,10 +119,11 @@ export class CommunityNatsPublisher {
     // Monitor status changes
     void (async () => {
       for await (const status of this._nc!.status()) {
-        this._logger.warn(
-          { status: status.type, data: status.data },
-          "NATS status change",
-        );
+        if (status.type === "pingTimer") {
+          this._logger.debug({ status: status.type, data: status.data }, "NATS status change");
+        } else {
+          this._logger.warn({ status: status.type, data: status.data }, "NATS status change");
+        }
       }
     })();
   }

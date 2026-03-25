@@ -290,9 +290,15 @@ function createReconciliationWorker(
     async (job) => {
       logger.info({ jobId: job.id, data: job.data }, "Running reconciliation job");
 
+      const targetDate = job.data.targetDate || (() => {
+        const d = new Date();
+        d.setUTCDate(d.getUTCDate() - 1);
+        return d.toISOString().slice(0, 10);
+      })();
+
       const report = await runReconciliation(
         {
-          targetDate: job.data.targetDate,
+          targetDate,
           ...(job.data.sellerId !== undefined ? { sellerId: job.data.sellerId } : {}),
         },
         { db, nats, logger },
